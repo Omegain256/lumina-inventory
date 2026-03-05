@@ -50,6 +50,13 @@ export default function Login() {
         }
     };
 
+    const loginAsGuest = useAuth().loginAsGuest;
+
+    const handleGuestLogin = () => {
+        setLoading(true);
+        loginAsGuest();
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -93,7 +100,7 @@ export default function Login() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                        className="w-full bg-white text-black py-3.5 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                         {loading ? "Signing in..." : "Sign In"}
                     </button>
@@ -101,26 +108,36 @@ export default function Login() {
 
                 <div className="relative mb-6">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0b] px-2 text-white/30">Or continue with</span></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0b] px-2 text-white/30">Quick Access</span></div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                     <button
-                        onClick={handleGoogleLogin}
+                        onClick={handleGuestLogin}
                         disabled={loading}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
+                        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2"
                     >
-                        <LogIn className="w-4 h-4 text-white/60" />
-                        <span className="text-sm font-medium text-white/80">Google</span>
+                        Explore Demo as Guest
                     </button>
 
-                    <button
-                        onClick={handleDemoLogin}
-                        disabled={loading}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-primary/10 border border-primary/20 py-3 transition-all hover:bg-primary/20 disabled:opacity-50"
-                    >
-                        <span className="text-sm font-medium text-primary">Demo</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={handleGoogleLogin}
+                            disabled={loading}
+                            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
+                        >
+                            <span className="text-sm font-medium text-white/80">Google</span>
+                        </button>
+
+                        <button
+                            onClick={handleDemoLogin}
+                            disabled={loading}
+                            title="Sign in with demo account (Requires manual auth confirmation in Supabase)"
+                            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
+                        >
+                            <span className="text-sm font-medium text-white/60">Demo Login</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

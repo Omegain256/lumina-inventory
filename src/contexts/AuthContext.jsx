@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
             if (error) {
                 console.error("Error fetching profile:", error);
                 // Fallback for demo user
-                if (user.email === 'demo@lumina.com') {
+                if (user.email === 'demo@lumina.com' || user.isGuest) {
                     setUserRole('admin');
                 } else {
                     setUserRole('staff');
@@ -46,8 +46,16 @@ export const AuthProvider = ({ children }) => {
                 setUserRole(data.role);
             }
         } else {
-            setCurrentUser(null);
-            setUserRole(null);
+            // Check for guest mode
+            const guest = localStorage.getItem('lumina_guest');
+            if (guest) {
+                const guestUser = JSON.parse(guest);
+                setCurrentUser(guestUser);
+                setUserRole('admin');
+            } else {
+                setCurrentUser(null);
+                setUserRole(null);
+            }
         }
         setLoading(false);
     }
@@ -55,12 +63,14 @@ export const AuthProvider = ({ children }) => {
     const loginWithEmail = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        localStorage.removeItem('lumina_guest');
         return data;
     };
 
     const loginWithGoogle = async () => {
         const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
         if (error) throw error;
+        localStorage.removeItem('lumina_guest');
         return data;
     };
 
@@ -68,11 +78,29 @@ export const AuthProvider = ({ children }) => {
         return loginWithEmail("demo@lumina.com", "password123");
     };
 
-    const logout = () => supabase.auth.signOut();
+    const loginAsGuest = () => {
+        const guestUser = {
+            id: 'guest-' + Math.random().toString(36).substr(2, 9),
+            email: 'guest@lumina.demo',
+            display_name: 'Guest Explorer',
+            isGuest: true
+        };
+        localStorage.setItem('lumina_guest', JSON.stringify(guestUser));
+        setCurrentUser(guestUser);
+        setUserRole('admin');
+    };
+
+    const logout = async () => {
+        await supabase.auth.signOut();
+        localStorage.removeItem('lumina_guest');
+        setCurrentUser(null);
+        setUserRole(null);
+    };
+
     const isAdmin = userRole === 'admin';
     const isManager = userRole === 'manager' || userRole === 'admin';
 
-    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, loginDemo, logout };
+    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, loginDemo, loginAsGuest, logout };
 
     return (
         <AuthContext.Provider value={value}>
