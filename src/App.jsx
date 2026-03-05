@@ -20,6 +20,7 @@ import Workshift from './pages/Reports/Workshift';
 import Shops from './pages/Inventory/Shops';
 import Warehouses from './pages/Inventory/Warehouses';
 import Settings from './pages/Settings/Settings';
+import StockMovementSummary from './pages/Reports/StockMovementSummary';
 
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="reports/expenses" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/employees" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/commission" element={<RoleRoute requiredRole="manager"><CommissionReport /></RoleRoute>} />
+        <Route path="reports/stock-movement" element={<RoleRoute requiredRole="manager"><StockMovementSummary /></RoleRoute>} />
 
         {/* Stakeholders */}
         <Route path="stakeholders/customers" element={<RoleRoute requiredRole="admin"><Customers /></RoleRoute>} />

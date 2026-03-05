@@ -107,6 +107,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                                 <NavItem to="/reports/expenses" icon={PieChart} label="Expenses" onClick={() => setIsOpen(false)} />
                                 <NavItem to="/reports/employees" icon={Users} label="Employees" onClick={() => setIsOpen(false)} />
                                 <NavItem to="/reports/commission" icon={HandCoins} label="Commission" onClick={() => setIsOpen(false)} />
+                                <NavItem to="/reports/stock-movement" icon={TrendingUp} label="Stock Movement" onClick={() => setIsOpen(false)} />
                             </NavGroup>
                         )}
 
