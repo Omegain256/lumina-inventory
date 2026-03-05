@@ -109,7 +109,7 @@ export default function Suppliers() {
                                                 {s.name}
                                             </div>
                                         </td>
-                                        <td className="p-4 text-white/80">{s.contactPerson || '-'}</td>
+                                        <td className="p-4 text-white/80">{s.contact_person || '-'}</td>
                                         <td className="p-4 text-white/60 text-sm">
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2"><Phone className="w-3 h-3" /> {s.phone || '-'}</div>
