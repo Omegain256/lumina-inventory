@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Store, Plus, MapPin, Phone, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,22 +14,26 @@ export default function Shops() {
         manager: ''
     });
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('shops')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setShops(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'shops'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setShops(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return () => unsubscribe();
+        fetchData();
+        const channel = supabase.channel('shops').on('postgres_changes', { event: '*', schema: 'public', table: 'shops' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await addDoc(collection(db, 'shops'), {
-                ...formData,
-                createdAt: serverTimestamp()
-            });
+            const { error } = await supabase.from('shops').insert(formData);
+            if (error) throw error;
             toast.success("Shop added successfully!");
             setIsModalOpen(false);
             setFormData({ name: '', location: '', phone: '', manager: '' });
@@ -45,7 +48,8 @@ export default function Shops() {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this shop?")) return;
         try {
-            await deleteDoc(doc(db, 'shops', id));
+            const { error } = await supabase.from('shops').delete().eq('id', id);
+            if (error) throw error;
             toast.success("Shop deleted.");
         } catch (error) {
             console.error("Error deleting shop:", error);

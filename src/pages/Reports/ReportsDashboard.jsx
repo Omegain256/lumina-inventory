@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { BarChart3, TrendingUp, HandCoins, CalendarDays, Wallet, Banknote, Users, Activity } from 'lucide-react';
 import { useLocation, NavLink } from 'react-router-dom';
 
@@ -9,20 +8,26 @@ export default function ReportsDashboard() {
     const [sales, setSales] = useState([]);
     const [transactions, setTransactions] = useState([]);
 
-    useEffect(() => {
-        // Fetch real data to fuel the reports (Sales, Purchases, etc.)
-        const unsubSales = onSnapshot(query(collection(db, 'sales'), orderBy('createdAt', 'desc')), (snap) => {
-            setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        const unsubTx = onSnapshot(query(collection(db, 'inventory_transactions'), orderBy('createdAt', 'desc')), (snap) => {
-            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+    const fetchData = async () => {
+        const { data: salesData } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
+        if (salesData) setSales(salesData);
 
-        return () => { unsubSales(); unsubTx(); };
+        const { data: txData } = await supabase.from('inventory_transactions').select('*').order('created_at', { ascending: false });
+        if (txData) setTransactions(txData);
+    };
+
+    useEffect(() => {
+        fetchData();
+        const salesChannel = supabase.channel('sales').on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, fetchData).subscribe();
+        const txChannel = supabase.channel('inventory_transactions').on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_transactions' }, fetchData).subscribe();
+        return () => {
+            supabase.removeChannel(salesChannel);
+            supabase.removeChannel(txChannel);
+        };
     }, []);
 
     // Calculate metrics
-    const totalRevenue = sales.reduce((sum, s) => sum + (s.total || 0), 0);
+    const totalRevenue = sales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
     const totalSalesCount = sales.length;
 
     // Simplistic cost assumption for demo: purchase prices are in transactions, or we just mock a 40% margin
@@ -125,10 +130,10 @@ export default function ReportsDashboard() {
                                 </div>
                                 <div className="text-right">
                                     <p className="font-bold text-green-400 font-mono text-sm">
-                                        +Ksh {sale.total?.toLocaleString() || 0}
+                                        +Ksh {sale.total_amount?.toLocaleString() || 0}
                                     </p>
                                     <p className="text-[10px] text-white/30 mt-1">
-                                        {sale.createdAt ? new Date(sale.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                                        {sale.created_at ? new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                                     </p>
                                 </div>
                             </div>

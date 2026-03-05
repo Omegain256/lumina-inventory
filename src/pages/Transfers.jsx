@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, writeBatch, getDocs, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
 import CreateTransferModal from '../components/transfers/CreateTransferModal';
@@ -9,79 +8,50 @@ export default function Transfers() {
     const [transfers, setTransfers] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Quick Mock data initialization for the prompt requirements
-    const seedData = async () => {
-        try {
-            const locSnap = await getDocs(collection(db, 'locations'));
-            if (locSnap.empty) {
-                console.log('Seeding initial data...');
-                const batch = writeBatch(db);
-
-                const warehouseRef = doc(collection(db, 'locations'));
-                batch.set(warehouseRef, { name: 'Warehouse A', type: 'warehouse' });
-
-                const shopRef = doc(collection(db, 'locations'));
-                batch.set(shopRef, { name: 'Shop B', type: 'shop' });
-
-                const productRef = doc(collection(db, 'products'));
-                batch.set(productRef, { name: 'Premium Coffee Beans', price: 1200, sku: 'CB-001' });
-
-                const invRef = doc(collection(db, 'inventory'));
-                batch.set(invRef, { productId: productRef.id, locationId: warehouseRef.id, quantity: 50 });
-
-                await batch.commit();
-                window.location.reload();
-            }
-        } catch (e) { console.error('Seeding error', e); }
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('transfers')
+            .select('*, product:products(name)')
+            .order('created_at', { ascending: false });
+        if (data) setTransfers(data.map(t => ({ ...t, createdAt: new Date(t.created_at) })));
     };
 
     useEffect(() => {
-        seedData();
-        const q = query(collection(db, 'transfers'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setTransfers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return unsubscribe;
+        fetchData();
+        const channel = supabase.channel('transfers').on('postgres_changes', { event: '*', schema: 'public', table: 'transfers' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const markCompleted = async (transfer) => {
         try {
-            const batch = writeBatch(db);
+            // In a real app, this should be a Supabase function or a transaction
+            // For now, we'll do sequential updates (not ideal for race conditions)
 
             for (const item of transfer.items) {
-                // Find inventory document for 'From'
-                const fromInvQ = query(collection(db, 'inventory'));
-                const fromInvSnap = await getDocs(fromInvQ);
-                let fromDocId = null, fromQty = 0;
-                let toDocId = null, toQty = 0;
+                // Decrement from origin
+                const { data: fromInv } = await supabase.from('inventory').select('quantity').eq('location_id', transfer.from_location_id).eq('product_id', item.productId).single();
+                if (fromInv) {
+                    await supabase.from('inventory').update({ quantity: fromInv.quantity - item.quantity }).eq('location_id', transfer.from_location_id).eq('product_id', item.productId);
+                }
 
-                fromInvSnap.forEach(d => {
-                    if (d.data().locationId === transfer.fromLocationId && d.data().productId === item.productId) {
-                        fromDocId = d.id; fromQty = d.data().quantity;
-                    }
-                    if (d.data().locationId === transfer.toLocationId && d.data().productId === item.productId) {
-                        toDocId = d.id; toQty = d.data().quantity;
-                    }
-                });
-
-                if (fromDocId) batch.update(doc(db, 'inventory', fromDocId), { quantity: fromQty - item.quantity });
-
-                if (toDocId) {
-                    batch.update(doc(db, 'inventory', toDocId), { quantity: toQty + item.quantity });
+                // Increment at destination
+                const { data: toInv } = await supabase.from('inventory').select('quantity').eq('location_id', transfer.to_location_id).eq('product_id', item.productId).single();
+                if (toInv) {
+                    await supabase.from('inventory').update({ quantity: toInv.quantity + item.quantity }).eq('location_id', transfer.to_location_id).eq('product_id', item.productId);
                 } else {
-                    batch.set(doc(collection(db, 'inventory')), {
-                        locationId: transfer.toLocationId,
-                        productId: item.productId,
+                    await supabase.from('inventory').insert({
+                        location_id: transfer.to_location_id,
+                        product_id: item.productId,
                         quantity: item.quantity
                     });
                 }
             }
 
-            batch.update(doc(db, 'transfers', transfer.id), {
-                status: 'completed',
-                completedAt: serverTimestamp()
-            });
-            await batch.commit();
+            const { error } = await supabase.from('transfers').update({
+                status: 'completed'
+            }).eq('id', transfer.id);
+
+            if (error) throw error;
         } catch (e) { console.error("Error completing transfer: ", e); }
     };
 
@@ -125,11 +95,11 @@ export default function Transfers() {
                             ) : (
                                 transfers.map(t => (
                                     <tr key={t.id} className="hover:bg-white/[0.02] transition-colors group">
-                                        <td className="p-4 text-sm text-white/80">{t.createdAt?.toDate ? t.createdAt.toDate().toLocaleDateString() : 'Today'}</td>
-                                        <td className="p-4 font-medium">{t.fromLocationName || 'Warehouse A'}</td>
+                                        <td className="p-4 text-sm text-white/80">{t.created_at ? new Date(t.created_at).toLocaleDateString() : 'Today'}</td>
+                                        <td className="p-4 font-medium">{t.from_location_name || 'Warehouse A'}</td>
                                         <td className="p-4 text-white/60">
                                             <ArrowRight className="w-4 h-4 inline mx-2" />
-                                            <span className="font-medium text-white">{t.toLocationName || 'Shop B'}</span>
+                                            <span className="font-medium text-white">{t.to_location_name || 'Shop B'}</span>
                                         </td>
                                         <td className="p-4">
                                             {t.status === 'completed' ? (
@@ -142,10 +112,10 @@ export default function Transfers() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="p-4 text-sm text-white/60">{t.createdBy}</td>
+                                        <td className="p-4 text-sm text-white/60">{t.created_by}</td>
                                         <td className="p-4 text-sm font-semibold text-right flex items-center justify-end gap-1">
                                             <span className="text-white/40 font-normal pr-1">Ksh</span>
-                                            {t.totalValue?.toLocaleString() || '0'}
+                                            {t.total_value?.toLocaleString() || '0'}
                                         </td>
                                         <td className="p-4 text-right">
                                             {t.status === 'pending' && (

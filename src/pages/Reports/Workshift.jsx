@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, where, getDocs } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Clock, Play, Square, User, TrendingUp, Calendar, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,30 +10,37 @@ export default function Workshift() {
     const [activeShift, setActiveShift] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const q = query(collection(db, 'workshifts'), orderBy('startTime', 'desc'));
-        const unsubscribe = onSnapshot(q, (snap) => {
-            const shiftData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setShifts(shiftData);
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('workshifts')
+            .select('*')
+            .order('start_time', { ascending: false });
 
-            // Check for current user's active shift
-            const active = shiftData.find(s => s.userId === currentUser?.uid && s.status === 'active');
+        if (data) {
+            setShifts(data);
+            const active = data.find(s => s.user_id === currentUser?.id && s.status === 'active');
             setActiveShift(active || null);
-            setLoading(false);
-        });
-        return unsubscribe;
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        if (!currentUser) return;
+        fetchData();
+        const channel = supabase.channel('workshifts').on('postgres_changes', { event: '*', schema: 'public', table: 'workshifts' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, [currentUser]);
 
     const startShift = async () => {
         try {
-            await addDoc(collection(db, 'workshifts'), {
-                userId: currentUser.uid,
-                userName: currentUser.displayName || currentUser.email.split('@')[0],
-                startTime: serverTimestamp(),
+            const { error } = await supabase.from('workshifts').insert({
+                user_id: currentUser.id,
+                user_name: currentUser.email.split('@')[0], // Profile name could be fetched alternatively
                 status: 'active',
-                totalSales: 0,
-                salesCount: 0
+                total_sales: 0,
+                sales_count: 0
             });
+            if (error) throw error;
             toast.success("Shift started!");
         } catch (error) {
             toast.error("Failed to start shift");
@@ -46,23 +52,28 @@ export default function Workshift() {
 
         try {
             // Find sales made during this shift
-            const startTime = activeShift.startTime?.toDate?.() || new Date();
-            const q = query(
-                collection(db, 'sales'),
-                where('createdAt', '>=', startTime)
-            );
-            const salesSnap = await getDocs(q);
-            const sales = salesSnap.docs.map(d => d.data());
+            const { data: sales, error: salesError } = await supabase
+                .from('sales')
+                .select('total_amount')
+                .eq('user_id', currentUser.id)
+                .gte('created_at', activeShift.start_time);
 
-            const totalSales = sales.reduce((sum, s) => sum + (s.total || 0), 0);
-            const salesCount = sales.length;
+            if (salesError) throw salesError;
 
-            await updateDoc(doc(db, 'workshifts', activeShift.id), {
-                endTime: serverTimestamp(),
-                status: 'completed',
-                totalSales,
-                salesCount
-            });
+            const totalSales = (sales || []).reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+            const salesCount = (sales || []).length;
+
+            const { error: updateError } = await supabase
+                .from('workshifts')
+                .update({
+                    end_time: new Date().toISOString(),
+                    status: 'completed',
+                    total_sales: totalSales,
+                    sales_count: salesCount
+                })
+                .eq('id', activeShift.id);
+
+            if (updateError) throw updateError;
             toast.success("Shift ended successfully!");
         } catch (error) {
             console.error(error);
@@ -112,7 +123,7 @@ export default function Workshift() {
                             </div>
                             <div>
                                 <h3 className="text-xl font-bold text-white uppercase tracking-tight">Active Shift</h3>
-                                <p className="text-white/50 text-sm">Started at {activeShift.startTime?.toDate?.() ? activeShift.startTime.toDate().toLocaleTimeString() : 'Just now'}</p>
+                                <p className="text-white/50 text-sm">Started at {activeShift.start_time ? new Date(activeShift.start_time).toLocaleTimeString() : 'Just now'}</p>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-8">
@@ -122,7 +133,7 @@ export default function Workshift() {
                             </div>
                             <div className="text-right">
                                 <p className="text-white/30 text-xs font-bold uppercase tracking-widest mb-1">Employee</p>
-                                <p className="text-xl text-white font-medium">{activeShift.userName}</p>
+                                <p className="text-xl text-white font-medium">{activeShift.user_name}</p>
                             </div>
                         </div>
                     </div>
@@ -147,7 +158,7 @@ export default function Workshift() {
                                         {shift.status}
                                     </span>
                                     <span className="text-xs text-white/30 font-mono">
-                                        {shift.startTime?.toDate?.() ? shift.startTime.toDate().toLocaleDateString() : 'Pending...'}
+                                        {shift.start_time ? new Date(shift.start_time).toLocaleDateString() : 'Pending...'}
                                     </span>
                                 </div>
 
@@ -156,19 +167,19 @@ export default function Workshift() {
                                         <User className="w-5 h-5 text-white/60" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">{shift.userName}</p>
-                                        <p className="text-[10px] text-white/40">Employee ID: {shift.userId.slice(0, 8)}</p>
+                                        <p className="text-sm font-bold text-white">{shift.user_name}</p>
+                                        <p className="text-[10px] text-white/40">Employee ID: {shift.user_id.slice(0, 8)}</p>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5 mt-auto">
                                     <div className="space-y-1">
                                         <span className="text-[10px] text-white/30 font-bold uppercase block">Total Sales</span>
-                                        <span className="text-sm text-primary font-bold font-mono">Ksh {shift.totalSales?.toLocaleString() || 0}</span>
+                                        <span className="text-sm text-primary font-bold font-mono">Ksh {shift.total_sales?.toLocaleString() || 0}</span>
                                     </div>
                                     <div className="space-y-1 text-right">
                                         <span className="text-[10px] text-white/30 font-bold uppercase block">Sales Count</span>
-                                        <span className="text-sm text-white font-bold font-mono">{shift.salesCount || 0} items</span>
+                                        <span className="text-sm text-white font-bold font-mono">{shift.sales_count || 0} items</span>
                                     </div>
                                 </div>
                             </div>

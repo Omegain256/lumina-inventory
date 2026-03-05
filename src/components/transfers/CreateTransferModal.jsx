@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { X, Loader2 } from 'lucide-react';
 
@@ -19,14 +18,14 @@ export default function CreateTransferModal({ isOpen, onClose }) {
     useEffect(() => {
         if (isOpen) {
             const fetchData = async () => {
-                const locSnap = await getDocs(collection(db, 'locations'));
-                setLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+                const { data: locData } = await supabase.from('locations').select('*');
+                if (locData) setLocations(locData);
 
-                const prodSnap = await getDocs(collection(db, 'products'));
-                setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+                const { data: prodData } = await supabase.from('products').select('*');
+                if (prodData) setProducts(prodData);
 
-                const invSnap = await getDocs(collection(db, 'inventory'));
-                setInventory(invSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+                const { data: invData } = await supabase.from('inventory').select('*');
+                if (invData) setInventory(invData);
             };
             fetchData();
         }
@@ -34,32 +33,37 @@ export default function CreateTransferModal({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-    const availableInventory = inventory.filter(i => i.locationId === fromLocation && i.quantity > 0);
-    const availableProducts = products.filter(p => availableInventory.some(i => i.productId === p.id));
-    const maxQty = availableInventory.find(i => i.productId === selectedProduct)?.quantity || 0;
+    const availableInventory = inventory.filter(i => i.location_id === fromLocation && i.quantity > 0);
+    const availableProducts = products.filter(p => availableInventory.some(i => i.product_id === p.id));
+    const maxQty = availableInventory.find(i => i.product_id === selectedProduct)?.quantity || 0;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!fromLocation || !toLocation || !selectedProduct || !quantity || quantity > maxQty) return;
 
         setLoading(true);
-        const prod = products.find(p => p.id === selectedProduct);
-        const totalValue = prod.price * Number(quantity);
+        try {
+            const prod = products.find(p => p.id === selectedProduct);
+            const totalValue = (prod.selling_price || 0) * Number(quantity);
 
-        await addDoc(collection(db, 'transfers'), {
-            fromLocationId: fromLocation,
-            fromLocationName: locations.find(l => l.id === fromLocation).name,
-            toLocationId: toLocation,
-            toLocationName: locations.find(l => l.id === toLocation).name,
-            status: 'pending',
-            createdBy: currentUser?.email || 'Demo User',
-            createdAt: serverTimestamp(),
-            totalValue,
-            items: [{ productId: selectedProduct, quantity: Number(quantity) }]
-        });
+            const { error } = await supabase.from('transfers').insert({
+                from_location_id: fromLocation,
+                from_location_name: locations.find(l => l.id === fromLocation).name,
+                to_location_id: toLocation,
+                to_location_name: locations.find(l => l.id === toLocation).name,
+                status: 'pending',
+                created_by: currentUser?.email || 'Demo User',
+                total_value: totalValue,
+                items: [{ productId: selectedProduct, quantity: Number(quantity) }]
+            });
 
-        setLoading(false);
-        onClose();
+            if (error) throw error;
+            onClose();
+        } catch (e) {
+            console.error("Error creating transfer:", e);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

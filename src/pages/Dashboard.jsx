@@ -1,8 +1,7 @@
 import { TrendingUp, Package, AlertCircle, Users, Activity } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 
 const MetricCard = ({ title, value, change, icon: Icon, isPositive, trend }) => (
     <div className="glass-panel p-6 relative overflow-hidden group">
@@ -38,24 +37,57 @@ export default function Dashboard() {
         sales: []
     });
 
+    const fetchStats = async () => {
+        // Fetch Sales & Revenue
+        const { data: sales, error: salesError } = await supabase
+            .from('sales')
+            .select('id, total_amount, payment_method, created_at')
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        const { data: totalRevenue, error: revError } = await supabase
+            .from('sales')
+            .select('total_amount');
+
+        if (!salesError && !revError) {
+            const revenue = (totalRevenue || []).reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+            setStats(prev => ({ ...prev, sales: sales || [], revenue }));
+        }
+
+        // Fetch Products & Low Stock
+        const { data: products, error: prodError } = await supabase
+            .from('products')
+            .select('stock_quantity');
+
+        if (!prodError) {
+            const lowStock = (products || []).filter(p => p.stock_quantity < 10).length;
+            setStats(prev => ({ ...prev, products: products.length, lowStock }));
+        }
+
+        // Fetch Shops
+        const { count: shopCount, error: shopError } = await supabase
+            .from('shops')
+            .select('*', { count: 'exact', head: true });
+
+        if (!shopError) {
+            setStats(prev => ({ ...prev, shops: shopCount || 0 }));
+        }
+    };
+
     useEffect(() => {
-        const unsubSales = onSnapshot(collection(db, 'sales'), (snap) => {
-            const salesData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            const revenue = salesData.reduce((sum, s) => sum + (s.total || 0), 0);
-            setStats(prev => ({ ...prev, sales: salesData.slice(0, 5), revenue }));
-        });
+        fetchStats();
 
-        const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
-            const productsData = snap.docs.map(d => d.data());
-            const lowStock = productsData.filter(p => p.stock < 10).length;
-            setStats(prev => ({ ...prev, products: productsData.length, lowStock }));
-        });
+        // Real-time subscription for all changes
+        const channel = supabase
+            .channel('db-changes')
+            .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+                fetchStats();
+            })
+            .subscribe();
 
-        const unsubShops = onSnapshot(collection(db, 'shops'), (snap) => {
-            setStats(prev => ({ ...prev, shops: snap.docs.length }));
-        });
-
-        return () => { unsubSales(); unsubProducts(); unsubShops(); };
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     return (
@@ -129,10 +161,10 @@ export default function Dashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-white truncate">Sale #{sale.id.slice(-4)}</p>
-                                        <p className="text-xs text-white/50 truncate">{sale.paymentMethod || 'Cash'}</p>
+                                        <p className="text-xs text-white/50 truncate">{sale.payment_method || 'Cash'}</p>
                                     </div>
                                     <span className="text-sm font-bold text-white group-hover:text-primary transition-colors">
-                                        Ksh {sale.total?.toLocaleString()}
+                                        Ksh {Number(sale.total_amount || 0).toLocaleString()}
                                     </span>
                                 </div>
                             ))

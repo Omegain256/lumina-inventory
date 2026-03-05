@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Trash2, Ruler } from 'lucide-react';
 
 export default function Units() {
@@ -9,12 +8,18 @@ export default function Units() {
     const [newUnitAbbreviation, setNewUnitAbbreviation] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('units')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setUnits(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'units'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setUnits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return unsubscribe;
+        fetchData();
+        const channel = supabase.channel('units').on('postgres_changes', { event: '*', schema: 'public', table: 'units' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleAdd = async (e) => {
@@ -22,12 +27,11 @@ export default function Units() {
         if (!newUnitName.trim() || !newUnitAbbreviation.trim()) return;
         setLoading(true);
         try {
-            await addDoc(collection(db, 'units'), {
+            const { error } = await supabase.from('units').insert({
                 name: newUnitName.trim(),
-                abbreviation: newUnitAbbreviation.trim(),
-                createdAt: serverTimestamp(),
-                businessId: 'demo-business' // Placeholder
+                abbreviation: newUnitAbbreviation.trim()
             });
+            if (error) throw error;
             setNewUnitName('');
             setNewUnitAbbreviation('');
         } catch (err) {
@@ -40,7 +44,8 @@ export default function Units() {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this unit?")) return;
         try {
-            await deleteDoc(doc(db, 'units', id));
+            const { error } = await supabase.from('units').delete().eq('id', id);
+            if (error) throw error;
         } catch (err) {
             console.error(err);
         }

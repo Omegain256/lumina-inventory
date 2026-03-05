@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Trash2, Tag } from 'lucide-react';
 
 export default function Categories() {
@@ -8,12 +7,18 @@ export default function Categories() {
     const [newCategory, setNewCategory] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setCategories(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'categories'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return unsubscribe;
+        fetchData();
+        const channel = supabase.channel('categories').on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleAdd = async (e) => {
@@ -21,11 +26,10 @@ export default function Categories() {
         if (!newCategory.trim()) return;
         setLoading(true);
         try {
-            await addDoc(collection(db, 'categories'), {
-                name: newCategory.trim(),
-                createdAt: serverTimestamp(),
-                businessId: 'demo-business' // Placeholder
+            const { error } = await supabase.from('categories').insert({
+                name: newCategory.trim()
             });
+            if (error) throw error;
             setNewCategory('');
         } catch (err) {
             console.error(err);
@@ -37,7 +41,8 @@ export default function Categories() {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this category?")) return;
         try {
-            await deleteDoc(doc(db, 'categories', id));
+            const { error } = await supabase.from('categories').delete().eq('id', id);
+            if (error) throw error;
         } catch (err) {
             console.error(err);
         }

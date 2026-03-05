@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, User, Mail, Phone, MapPin, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,22 +14,26 @@ export default function Customers() {
         address: ''
     });
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setCustomers(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'customers'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return () => unsubscribe();
+        fetchData();
+        const channel = supabase.channel('customers').on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await addDoc(collection(db, 'customers'), {
-                ...formData,
-                createdAt: serverTimestamp()
-            });
+            const { error } = await supabase.from('customers').insert(formData);
+            if (error) throw error;
             toast.success("Customer added successfully!");
             setIsModalOpen(false);
             setFormData({ name: '', email: '', phone: '', address: '' });
@@ -45,7 +48,8 @@ export default function Customers() {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this customer?")) return;
         try {
-            await deleteDoc(doc(db, 'customers', id));
+            const { error } = await supabase.from('customers').delete().eq('id', id);
+            if (error) throw error;
             toast.success("Customer deleted.");
         } catch (error) {
             console.error("Error deleting customer:", error);

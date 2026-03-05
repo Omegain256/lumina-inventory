@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { ShoppingCart, Search, Plus, Minus, Trash2, User, CreditCard, Banknote, Smartphone, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Receipt from '../../components/shared/Receipt';
 
 export default function NewSale() {
+    const { currentUser } = useAuth();
     const [products, setProducts] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -15,10 +16,17 @@ export default function NewSale() {
     const [loading, setLoading] = useState(false);
     const [showReceipt, setShowReceipt] = useState(null);
 
+    const fetchData = async () => {
+        const { data: pData } = await supabase.from('products').select('*').order('name');
+        const { data: cData } = await supabase.from('customers').select('*').order('name');
+        if (pData) setProducts(pData);
+        if (cData) setCustomers(cData);
+    };
+
     useEffect(() => {
-        const unsubP = onSnapshot(query(collection(db, 'products'), orderBy('name')), (snap) => setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        const unsubC = onSnapshot(query(collection(db, 'customers'), orderBy('name')), (snap) => setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        return () => { unsubP(); unsubC(); };
+        fetchData();
+        const productChannel = supabase.channel('products-pos').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchData).subscribe();
+        return () => supabase.removeChannel(productChannel);
     }, []);
 
     const filteredProducts = useMemo(() => {
@@ -29,7 +37,7 @@ export default function NewSale() {
     }, [products, searchQuery]);
 
     const addToCart = (product) => {
-        if (product.stock <= 0) {
+        if (product.stock_quantity <= 0) {
             toast.error("Out of stock!");
             return;
         }
@@ -37,8 +45,8 @@ export default function NewSale() {
         setCart(prev => {
             const existing = prev.find(item => item.product.id === product.id);
             if (existing) {
-                if (existing.quantity >= product.stock) {
-                    toast.error(`Only ${product.stock} available in stock.`);
+                if (existing.quantity >= product.stock_quantity) {
+                    toast.error(`Only ${product.stock_quantity} available in stock.`);
                     return prev;
                 }
                 return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
@@ -52,8 +60,8 @@ export default function NewSale() {
             if (item.product.id === productId) {
                 const newQuantity = item.quantity + delta;
                 if (newQuantity < 1) return item;
-                if (newQuantity > item.product.stock) {
-                    toast.error(`Only ${item.product.stock} available in stock.`);
+                if (newQuantity > item.product.stock_quantity) {
+                    toast.error(`Only ${item.product.stock_quantity} available in stock.`);
                     return item;
                 }
                 return { ...item, quantity: newQuantity };
@@ -68,6 +76,7 @@ export default function NewSale() {
 
     const handleCheckout = async () => {
         if (cart.length === 0) return toast.error("Cart is empty");
+        if (!currentUser) return toast.error("Please log in to complete sale");
 
         setLoading(true);
         try {
@@ -76,49 +85,55 @@ export default function NewSale() {
             const total = subtotal - totalDiscount;
 
             // 1. Record Sale
-            const saleRef = await addDoc(collection(db, 'sales'), {
-                items: cart.map(i => ({
-                    productId: i.product.id,
-                    name: i.product.name,
-                    sku: i.product.sku,
-                    quantity: i.quantity,
-                    price: i.product.price,
-                    discount: i.discount
-                })),
-                subtotal,
-                totalDiscount,
-                total,
-                customerId: selectedCustomer,
-                paymentMethod,
-                createdAt: serverTimestamp()
-            });
+            const { data: sale, error: saleError } = await supabase
+                .from('sales')
+                .insert({
+                    total_amount: total,
+                    payment_method: paymentMethod,
+                    user_id: currentUser.id,
+                    // customer_id: selectedCustomer || null, // Add to schema if needed
+                })
+                .select()
+                .single();
 
-            // 2. Adjust Stock
+            if (saleError) throw saleError;
+
+            // 2. Record Sale Items
+            const saleItems = cart.map(item => ({
+                sale_id: sale.id,
+                product_id: item.product.id,
+                quantity: item.quantity,
+                unit_price: item.product.price
+            }));
+
+            const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+            if (itemsError) throw itemsError;
+
+            // 3. Adjust Stock (Sequential for demo, could be a stored procedure)
             for (const item of cart) {
-                const productRef = doc(db, 'products', item.product.id);
-                await updateDoc(productRef, {
-                    stock: increment(-item.quantity)
-                });
+                const { error: stockError } = await supabase
+                    .from('products')
+                    .update({ stock_quantity: item.product.stock_quantity - item.quantity })
+                    .eq('id', item.product.id);
+                if (stockError) console.error("Stock update error:", stockError);
             }
 
             toast.success("Sale completed successfully!");
 
-            // Show receipt after successful sale
-            const saleData = {
-                id: saleRef.id,
+            setShowReceipt({
+                id: sale.id,
                 total: total,
                 paymentMethod,
                 items: cart.map(i => ({ name: i.product.name, price: i.product.price, quantity: i.quantity })),
                 createdAt: new Date()
-            };
-            setShowReceipt(saleData);
+            });
 
             setCart([]);
             setSelectedCustomer('');
             setSearchQuery('');
         } catch (error) {
             console.error("Checkout error:", error);
-            toast.error("Failed to process sale.");
+            toast.error(error.message || "Failed to process sale.");
         } finally {
             setLoading(false);
         }
@@ -276,7 +291,7 @@ export default function NewSale() {
                                                 Ksh {product.price?.toLocaleString() || 0}
                                             </div>
                                             <div className={`text-[10px] font-medium px-2 py-0.5 rounded ${isOutOfStock ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                                                {isOutOfStock ? 'OUT' : `${product.stock} left`}
+                                                {isOutOfStock ? 'OUT' : `${product.stock_quantity} left`}
                                             </div>
                                         </div>
                                     </div>

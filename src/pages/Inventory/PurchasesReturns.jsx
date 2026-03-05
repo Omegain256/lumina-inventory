@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Replace, ArrowDownToLine, PackageSearch, Package } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -23,22 +22,20 @@ function CreateTransactionModal({ isOpen, onClose, products }) {
         setLoading(true);
 
         try {
-            // Find the selected product to get its name and cost/price info
             const product = products.find(p => p.id === formData.productId);
 
-            // 1. Create the transaction record
-            await addDoc(collection(db, 'inventory_transactions'), {
-                ...formData,
+            const { error } = await supabase.from('inventory_transactions').insert({
+                product_id: formData.productId,
+                type: formData.type,
                 quantity: Number(formData.quantity),
-                productName: product?.name || 'Unknown',
-                productSku: product?.sku || '',
-                createdBy: currentUser.email,
-                createdAt: serverTimestamp(),
+                product_name: product?.name || 'Unknown',
+                product_sku: product?.sku || '',
+                created_by: currentUser?.email || 'Demo User',
+                reference: formData.reference,
+                notes: formData.notes
             });
 
-            // Note: Ideally, here you would also update the actual 'stock' level 
-            // of the product inside the `products` or `inventory_levels` collection
-            // depending on the architecture.
+            if (error) throw error;
 
             toast.success(`${formData.type === 'purchase' ? 'Purchase' : 'Return'} recorded successfully!`);
             onClose();
@@ -177,23 +174,22 @@ export default function PurchasesReturns() {
     const [products, setProducts] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    const fetchData = async () => {
+        const { data: prodData } = await supabase.from('products').select('*');
+        if (prodData) setProducts(prodData);
+
+        const { data: txData } = await supabase.from('inventory_transactions').select('*').order('created_at', { ascending: false });
+        if (txData) setTransactions(txData.map(t => ({ ...t, date: new Date(t.created_at) })));
+    };
+
     useEffect(() => {
-        // Fetch products for the dropdown
-        const unsubP = onSnapshot(collection(db, 'products'), snap => {
-            setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
-        // Fetch transactions
-        const q = query(collection(db, 'inventory_transactions'), orderBy('createdAt', 'desc'));
-        const unsubT = onSnapshot(q, snap => {
-            setTransactions(snap.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                date: doc.data().createdAt?.toDate()
-            })));
-        });
-
-        return () => { unsubP(); unsubT(); };
+        fetchData();
+        const prodChannel = supabase.channel('products').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchData).subscribe();
+        const txChannel = supabase.channel('inventory_transactions').on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_transactions' }, fetchData).subscribe();
+        return () => {
+            supabase.removeChannel(prodChannel);
+            supabase.removeChannel(txChannel);
+        };
     }, []);
 
     return (

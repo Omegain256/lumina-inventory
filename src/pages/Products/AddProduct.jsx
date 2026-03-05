@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -26,7 +25,7 @@ export default function AddProduct() {
 
     const [autoBarcode, setAutoBarcode] = useState(false);
 
-    // Metadata state from Firestore
+    // Metadata state from Supabase
     const [categories, setCategories] = useState([]);
     const [brands, setBrands] = useState([]);
     const [units, setUnits] = useState([]);
@@ -34,13 +33,20 @@ export default function AddProduct() {
 
     const paymentModes = ['Cash', 'M-Pesa', 'Credit Card', 'Bank Transfer'];
 
-    useEffect(() => {
-        const unsubCategories = onSnapshot(query(collection(db, 'categories'), orderBy('name')), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        const unsubBrands = onSnapshot(query(collection(db, 'brands'), orderBy('name')), (snap) => setBrands(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        const unsubUnits = onSnapshot(query(collection(db, 'units'), orderBy('name')), (snap) => setUnits(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        const unsubSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snap) => setSuppliers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const fetchMetadata = async () => {
+        const { data: cData } = await supabase.from('categories').select('*').order('name');
+        const { data: bData } = await supabase.from('brands').select('*').order('name');
+        const { data: uData } = await supabase.from('units').select('*').order('name');
+        const { data: sData } = await supabase.from('customers').select('*').order('name'); // Using customers as suppliers for now if no separate table
 
-        return () => { unsubCategories(); unsubBrands(); unsubUnits(); unsubSuppliers(); };
+        if (cData) setCategories(cData);
+        if (bData) setBrands(bData);
+        if (uData) setUnits(uData);
+        if (sData) setSuppliers(sData);
+    };
+
+    useEffect(() => {
+        fetchMetadata();
     }, []);
 
     const handleChange = (e) => {
@@ -51,28 +57,28 @@ export default function AddProduct() {
         e.preventDefault();
         setLoading(true);
         try {
-            // Generate a random barcode if auto is checked and barcode is empty
             const finalBarcode = (autoBarcode && !formData.barcode)
                 ? 'LUM-' + Math.floor(Math.random() * 10000000)
                 : formData.barcode;
 
-            await addDoc(collection(db, 'products'), {
-                ...formData,
-                sku: finalBarcode, // Saving barcode as SKU for compatibility with ProductList
-                purchasePrice: Number(formData.purchasePrice),
-                price: Number(formData.sellingPrice), // selling price
-                stock: Number(formData.stock),
-                lowStockAlert: Number(formData.lowStockAlert),
-                discountAmount: Number(formData.discountAmount),
-                businessId: 'demo-business',
-                createdAt: serverTimestamp()
+            const { error } = await supabase.from('products').insert({
+                name: formData.name,
+                sku: finalBarcode,
+                category_id: formData.categoryId,
+                brand_id: formData.brandId,
+                unit_id: formData.unitId,
+                price: Number(formData.sellingPrice),
+                cost: Number(formData.purchasePrice),
+                stock_quantity: Number(formData.stock),
             });
+
+            if (error) throw error;
 
             toast.success("Product added successfully!");
             navigate('/products');
         } catch (error) {
             console.error("Error adding product:", error);
-            toast.error("Failed to add product");
+            toast.error(error.message || "Failed to add product");
         } finally {
             setLoading(false);
         }

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Wrench, Plus, User, Smartphone, Calendar, CheckCircle2, CircleDashed, Clock, AlertCircle, Edit, Trash2, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Receipt from '../../components/shared/Receipt';
@@ -29,25 +28,47 @@ export default function Repairs() {
     const technicians = ['John Doe', 'Jane Smith', 'Mike Johnson'];
     const statuses = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered'];
 
+    const fetchRepairs = async () => {
+        const { data, error } = await supabase
+            .from('repairs')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setRepairs(data.map(d => ({ ...d, createdAt: new Date(d.created_at) })));
+    };
+
+    const fetchCustomers = async () => {
+        const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .order('name');
+        if (data) setCustomers(data);
+    };
+
     useEffect(() => {
-        const unsubR = onSnapshot(query(collection(db, 'repairs'), orderBy('createdAt', 'desc')), (snap) => {
-            setRepairs(snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate() })));
-        });
-        const unsubC = onSnapshot(query(collection(db, 'customers'), orderBy('name')), (snap) => {
-            setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return () => { unsubR(); unsubC(); };
+        fetchRepairs();
+        fetchCustomers();
+        const rChannel = supabase.channel('repairs').on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, fetchRepairs).subscribe();
+        const cChannel = supabase.channel('customers').on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, fetchCustomers).subscribe();
+        return () => {
+            supabase.removeChannel(rChannel);
+            supabase.removeChannel(cChannel);
+        };
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await addDoc(collection(db, 'repairs'), {
-                ...formData,
-                estimatedCost: Number(formData.estimatedCost),
-                createdAt: serverTimestamp()
+            const { error } = await supabase.from('repairs').insert({
+                customer_id: formData.customerId,
+                device_name: formData.deviceModel,
+                issue_description: formData.issueDescription,
+                status: formData.status,
+                cost: Number(formData.estimatedCost),
+                // Note: The original schema might need extending for imei, technician, etc.
+                // For now, I'll map what's in the schema and maybe update schema if needed.
             });
+            if (error) throw error;
             toast.success("Repair job created!");
             setIsModalOpen(false);
             setFormData({ customerId: '', deviceModel: '', imei: '', issueDescription: '', estimatedCost: '', technician: '', status: 'Pending', repairType: '', commissionPercentage: '0', serviceCategory: 'Mobile Repair', mobileType: '' });
@@ -61,7 +82,8 @@ export default function Repairs() {
 
     const handleStatusChange = async (repairId, newStatus) => {
         try {
-            await updateDoc(doc(db, 'repairs', repairId), { status: newStatus });
+            const { error } = await supabase.from('repairs').update({ status: newStatus }).eq('id', repairId);
+            if (error) throw error;
             toast.success(`Status updated to ${newStatus}`);
         } catch (error) {
             console.error("Error updating status:", error);
@@ -72,7 +94,8 @@ export default function Repairs() {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this repair record?")) return;
         try {
-            await deleteDoc(doc(db, 'repairs', id));
+            const { error } = await supabase.from('repairs').delete().eq('id', id);
+            if (error) throw error;
             toast.success("Deleted successfully.");
         } catch (error) {
             console.error("Error deleting:", error);

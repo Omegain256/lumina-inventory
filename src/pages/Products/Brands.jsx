@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Trash2, Award } from 'lucide-react';
 
 export default function Brands() {
@@ -8,12 +7,18 @@ export default function Brands() {
     const [newBrand, setNewBrand] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('brands')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setBrands(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'brands'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setBrands(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return unsubscribe;
+        fetchData();
+        const channel = supabase.channel('brands').on('postgres_changes', { event: '*', schema: 'public', table: 'brands' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleAdd = async (e) => {
@@ -21,11 +26,10 @@ export default function Brands() {
         if (!newBrand.trim()) return;
         setLoading(true);
         try {
-            await addDoc(collection(db, 'brands'), {
-                name: newBrand.trim(),
-                createdAt: serverTimestamp(),
-                businessId: 'demo-business' // Placeholder
+            const { error } = await supabase.from('brands').insert({
+                name: newBrand.trim()
             });
+            if (error) throw error;
             setNewBrand('');
         } catch (err) {
             console.error(err);
@@ -37,7 +41,8 @@ export default function Brands() {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this brand?")) return;
         try {
-            await deleteDoc(doc(db, 'brands', id));
+            const { error } = await supabase.from('brands').delete().eq('id', id);
+            if (error) throw error;
         } catch (err) {
             console.error(err);
         }

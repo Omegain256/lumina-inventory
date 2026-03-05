@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Warehouse, Plus, MapPin, Package, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -14,23 +13,29 @@ export default function Warehouses() {
         capacity: ''
     });
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('warehouses')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setWarehouses(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'warehouses'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setWarehouses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return () => unsubscribe();
+        fetchData();
+        const channel = supabase.channel('warehouses').on('postgres_changes', { event: '*', schema: 'public', table: 'warehouses' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await addDoc(collection(db, 'warehouses'), {
+            const { error } = await supabase.from('warehouses').insert({
                 ...formData,
-                capacity: Number(formData.capacity),
-                createdAt: serverTimestamp()
+                capacity: Number(formData.capacity)
             });
+            if (error) throw error;
             toast.success("Warehouse added successfully!");
             setIsModalOpen(false);
             setFormData({ name: '', location: '', capacity: '' });
@@ -45,7 +50,8 @@ export default function Warehouses() {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this warehouse?")) return;
         try {
-            await deleteDoc(doc(db, 'warehouses', id));
+            const { error } = await supabase.from('warehouses').delete().eq('id', id);
+            if (error) throw error;
             toast.success("Warehouse deleted.");
         } catch (error) {
             console.error("Error deleting warehouse:", error);

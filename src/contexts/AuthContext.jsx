@@ -1,7 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { auth, googleProvider, db } from '../config/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../config/supabase';
 
 const AuthContext = createContext();
 
@@ -13,58 +11,68 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                if (userDoc.exists()) {
-                    let role = userDoc.data().role || 'staff';
-                    // Force admin for demo user
-                    if (user.email === 'demo@lumina.com' && role !== 'admin') {
-                        role = 'admin';
-                        await updateDoc(doc(db, 'users', user.uid), { role: 'admin' });
-                    }
-                    setUserRole(role);
-                } else {
-                    // Create user record if not exists
-                    const defaultRole = user.email === 'demo@lumina.com' ? 'admin' : 'staff';
-                    await setDoc(doc(db, 'users', user.uid), {
-                        email: user.email,
-                        name: user.displayName || user.email.split('@')[0],
-                        role: defaultRole,
-                        createdAt: serverTimestamp()
-                    });
-                    setUserRole(defaultRole);
-                }
-            } else {
-                setUserRole(null);
-            }
-            setCurrentUser(user);
-            setLoading(false);
+        // Initial session check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            handleUserChange(session?.user ?? null);
         });
-        return unsubscribe;
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            handleUserChange(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const loginWithGoogle = () => signInWithPopup(auth, googleProvider);
-    const loginWithEmail = (email, password) => signInWithEmailAndPassword(auth, email, password);
+    async function handleUserChange(user) {
+        if (user) {
+            setCurrentUser(user);
+            // Fetch profile including role
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
 
-    const loginDemo = async () => {
-        try {
-            await signInWithEmailAndPassword(auth, "demo@lumina.com", "password123");
-        } catch (e) {
-            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-                const { createUserWithEmailAndPassword } = await import('firebase/auth');
-                await createUserWithEmailAndPassword(auth, "demo@lumina.com", "password123");
+            if (error) {
+                console.error("Error fetching profile:", error);
+                // Fallback for demo user
+                if (user.email === 'demo@lumina.com') {
+                    setUserRole('admin');
+                } else {
+                    setUserRole('staff');
+                }
             } else {
-                throw e;
+                setUserRole(data.role);
             }
+        } else {
+            setCurrentUser(null);
+            setUserRole(null);
         }
+        setLoading(false);
+    }
+
+    const loginWithEmail = async (email, password) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        return data;
     };
 
-    const logout = () => firebaseSignOut(auth);
+    const loginWithGoogle = async () => {
+        const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+        if (error) throw error;
+        return data;
+    };
+
+    const loginDemo = async () => {
+        return loginWithEmail("demo@lumina.com", "password123");
+    };
+
+    const logout = () => supabase.auth.signOut();
     const isAdmin = userRole === 'admin';
     const isManager = userRole === 'manager' || userRole === 'admin';
 
-    const value = { currentUser, userRole, isAdmin, isManager, loginWithGoogle, loginWithEmail, loginDemo, logout };
+    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, loginDemo, logout };
 
     return (
         <AuthContext.Provider value={value}>

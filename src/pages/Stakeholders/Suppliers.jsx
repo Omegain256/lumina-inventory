@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Building, Mail, Phone, MapPin, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -16,22 +15,32 @@ export default function Suppliers() {
         contactPerson: ''
     });
 
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from('suppliers')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setSuppliers(data);
+    };
+
     useEffect(() => {
-        const q = query(collection(db, 'suppliers'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return () => unsubscribe();
+        fetchData();
+        const channel = supabase.channel('suppliers').on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, fetchData).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await addDoc(collection(db, 'suppliers'), {
-                ...formData,
-                createdAt: serverTimestamp()
+            const { error } = await supabase.from('suppliers').insert({
+                name: formData.name,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.address,
+                contact_person: formData.contactPerson
             });
+            if (error) throw error;
             toast.success("Supplier added successfully!");
             setIsModalOpen(false);
             setFormData({ name: '', email: '', phone: '', address: '', contactPerson: '' });
@@ -46,7 +55,8 @@ export default function Suppliers() {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this supplier?")) return;
         try {
-            await deleteDoc(doc(db, 'suppliers', id));
+            const { error } = await supabase.from('suppliers').delete().eq('id', id);
+            if (error) throw error;
             toast.success("Supplier deleted.");
         } catch (error) {
             console.error("Error deleting supplier:", error);

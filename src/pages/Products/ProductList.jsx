@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Plus, Package, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,34 +10,40 @@ export default function ProductList() {
     const [brands, setBrands] = useState({});
     const [units, setUnits] = useState({});
 
-    useEffect(() => {
-        // Fetch Dictionary mappings for easy lookup
-        const unsubC = onSnapshot(collection(db, 'categories'), snap => {
-            const map = {}; snap.forEach(d => map[d.id] = d.data().name); setCategories(map);
-        });
-        const unsubB = onSnapshot(collection(db, 'brands'), snap => {
-            const map = {}; snap.forEach(d => map[d.id] = d.data().name); setBrands(map);
-        });
-        const unsubU = onSnapshot(collection(db, 'units'), snap => {
-            const map = {}; snap.forEach(d => map[d.id] = d.data().abbreviation); setUnits(map);
-        });
+    const fetchData = async () => {
+        // Fetch Dictionary mappings
+        const { data: cData } = await supabase.from('categories').select('*');
+        const { data: bData } = await supabase.from('brands').select('*');
+        const { data: uData } = await supabase.from('units').select('*');
+
+        const cMap = {}; if (cData) cData.forEach(d => cMap[d.id] = d.name); setCategories(cMap);
+        const bMap = {}; if (bData) bData.forEach(d => bMap[d.id] = d.name); setBrands(bMap);
+        const uMap = {}; if (uData) uData.forEach(d => uMap[d.id] = d.abbreviation); setUnits(uMap);
 
         // Fetch Products
-        const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-        const unsubP = onSnapshot(q, snap => {
-            setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
+        const { data: pData, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-        return () => { unsubC(); unsubB(); unsubU(); unsubP(); };
+        if (pData) setProducts(pData);
+        if (error) console.error("Error fetching products:", error);
+    };
+
+    useEffect(() => {
+        fetchData();
+        const productChannel = supabase.channel('products-list').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchData).subscribe();
+        return () => supabase.removeChannel(productChannel);
     }, []);
 
     const handleDelete = async (productId) => {
         if (!window.confirm("Are you sure you want to delete this product?")) return;
 
         try {
-            const { doc, deleteDoc } = await import('firebase/firestore');
-            await deleteDoc(doc(db, 'products', productId));
+            const { error } = await supabase.from('products').delete().eq('id', productId);
+            if (error) throw error;
             toast.success("Product deleted successfully");
+            fetchData();
         } catch (error) {
             console.error("Error deleting product:", error);
             toast.error("Failed to delete product");
@@ -92,13 +97,13 @@ export default function ProductList() {
                                             </div>
                                             {p.name}
                                         </td>
-                                        <td className="p-4 text-white/60">{categories[p.categoryId] || '-'}</td>
-                                        <td className="p-4 text-white/60">{brands[p.brandId] || '-'}</td>
+                                        <td className="p-4 text-white/60">{categories[p.category_id] || '-'}</td>
+                                        <td className="p-4 text-white/60">{brands[p.brand_id] || '-'}</td>
                                         <td className="p-4 text-right font-mono">
                                             <span className="text-white/40 text-xs pr-1">Ksh</span>
-                                            {p.price?.toLocaleString() || "0"}
+                                            {Number(p.price || 0).toLocaleString()}
                                         </td>
-                                        <td className="p-4 text-center text-white/60 bg-white/[0.01]">{units[p.unitId] || '-'}</td>
+                                        <td className="p-4 text-center text-white/60 bg-white/[0.01]">{units[p.unit_id] || '-'}</td>
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Edit className="w-4 h-4" /></button>

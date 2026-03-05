@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Users, Wrench, Smartphone, DollarSign, Calculator, Calendar } from 'lucide-react';
 
 export default function CommissionReport() {
@@ -9,17 +8,24 @@ export default function CommissionReport() {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
-        const q = query(collection(db, 'repairs'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const repairsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate()
-            }));
-            setRepairs(repairsData);
+        const fetchRepairs = async () => {
+            const { data, error } = await supabase
+                .from('repairs')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (data) {
+                setRepairs(data.map(d => ({
+                    ...d,
+                    createdAt: new Date(d.created_at),
+                    estimatedCost: d.cost, // mapping schema 'cost' to expected 'estimatedCost'
+                })));
+            }
             setLoading(false);
-        });
-        return () => unsubscribe();
+        };
+
+        fetchRepairs();
+        const channel = supabase.channel('repairs').on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, fetchRepairs).subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     // Filter repairs for the selected date (Summary / Evening report)

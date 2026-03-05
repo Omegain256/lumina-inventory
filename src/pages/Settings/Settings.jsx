@@ -2,34 +2,42 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { User, Key, SlidersHorizontal, Settings2, Receipt, CreditCard, Bell, Save, Users, Shield, Mail, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // Determine active tab from URL, e.g. /settings/account -> account
     const currentTabId = location.pathname.split('/').pop() || 'account';
 
     const [isSaving, setIsSaving] = useState(false);
     const { isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
 
+    const fetchUsers = async () => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setUsers(data);
+    };
+
     useEffect(() => {
         if (isAdmin) {
-            const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            });
-            return () => unsubscribe();
+            fetchUsers();
+            const channel = supabase.channel('profiles').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchUsers).subscribe();
+            return () => supabase.removeChannel(channel);
         }
     }, [isAdmin]);
 
     const handleRoleChange = async (userId, newRole) => {
         try {
-            await updateDoc(doc(db, 'users', userId), { role: newRole });
+            const { error } = await supabase
+                .from('profiles')
+                .update({ role: newRole })
+                .eq('id', userId);
+            if (error) throw error;
             toast.success(`Role updated to ${newRole}`);
         } catch (error) {
             toast.error("Failed to update role");
