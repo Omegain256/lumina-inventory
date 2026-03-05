@@ -12,11 +12,36 @@ create table profiles (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Trigger to create profile on signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (new.id, new.email, 'admin'); -- Defaulting first users to admin for demo
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
 -- Shops table
 create table shops (
   id uuid default uuid_generate_v4() primary key,
   name text not null,
   location text,
+  phone text,
+  manager text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Warehouses table
+create table warehouses (
+  id uuid default uuid_generate_v4() primary key,
+  name text not null,
+  location text,
+  capacity integer default 0,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -108,14 +133,36 @@ CREATE TABLE IF NOT EXISTS public.repairs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Locations (Warehouses and Shops)
+CREATE TABLE IF NOT EXISTS public.locations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'warehouse' or 'shop'
+    address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Inventory (Stock per location)
+CREATE TABLE IF NOT EXISTS public.inventory (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    location_id UUID REFERENCES public.locations(id) ON DELETE CASCADE,
+    quantity INTEGER DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(product_id, location_id)
+);
+
 -- Transfers
 CREATE TABLE IF NOT EXISTS public.transfers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id),
-    from_warehouse_id UUID REFERENCES public.warehouses(id),
-    to_warehouse_id UUID REFERENCES public.warehouses(id),
-    quantity INTEGER NOT NULL,
+    from_location_id UUID REFERENCES public.locations(id),
+    from_location_name TEXT,
+    to_location_id UUID REFERENCES public.locations(id),
+    to_location_name TEXT,
+    items JSONB DEFAULT '[]',
+    total_value DECIMAL(12, 2) DEFAULT 0,
     status TEXT DEFAULT 'pending',
+    created_by TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -140,6 +187,8 @@ ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.repairs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.commissions ENABLE ROW LEVEL SECURITY;
 
@@ -152,32 +201,9 @@ create policy "All authenticated users can manage everything workshifts." on wor
 create policy "All authenticated users can manage everything customers." on customers for all using (auth.role() = 'authenticated');
 create policy "All authenticated users can manage everything suppliers." on suppliers for all using (auth.role() = 'authenticated');
 create policy "All authenticated users can manage everything repairs." on repairs for all using (auth.role() = 'authenticated');
-create policy "All authenticated users can manage everything transfers." on transfers for all using (auth.role() = 'authenticated');
--- Locations (Warehouses and Shops)
-CREATE TABLE IF NOT EXISTS public.locations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    type TEXT NOT NULL, -- 'warehouse' or 'shop'
-    address TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- Inventory (Stock per location)
-CREATE TABLE IF NOT EXISTS public.inventory (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
-    location_id UUID REFERENCES public.locations(id) ON DELETE CASCADE,
-    quantity INTEGER DEFAULT 0,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(product_id, location_id)
-);
-
--- Enable RLS
-ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
-
--- Policies
 create policy "All authenticated users can manage everything locations." on locations for all using (auth.role() = 'authenticated');
+create policy "All authenticated users can manage everything inventory." on inventory for all using (auth.role() = 'authenticated');
+create policy "All authenticated users can manage everything transfers." on transfers for all using (auth.role() = 'authenticated');
 -- Inventory Transactions (Purchases and Returns)
 CREATE TABLE IF NOT EXISTS public.inventory_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
