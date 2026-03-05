@@ -5,9 +5,11 @@ import { LogIn } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Login() {
-    const { loginWithGoogle, loginDemo, currentUser } = useAuth();
+    const { loginWithEmail, loginWithGoogle, loginDemo, loginAsGuest, currentUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
 
     if (currentUser) {
         return <Navigate to="/" />;
@@ -50,7 +52,6 @@ export default function Login() {
         }
     };
 
-    const loginAsGuest = useAuth().loginAsGuest;
 
     const handleGuestLogin = () => {
         setLoading(true);
