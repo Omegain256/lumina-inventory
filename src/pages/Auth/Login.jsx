@@ -64,13 +64,14 @@ export default function Login() {
 
             <div className="glass-panel max-w-md w-full p-8 md:p-10 relative z-10">
                 <div className="text-center mb-10">
-                    <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)]">
-                        <div className="w-8 h-8 bg-white rounded-md rotate-45"></div>
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-[0_0_40px_rgba(0,170,255,0.4)] border border-white/10">
+                        <span className="text-white font-black text-3xl tracking-tighter">AK</span>
                     </div>
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
-                        Welcome to Lumina
+                        AKISA LIMITED
                     </h1>
-                    <p className="text-white/50 mt-2">Premium Inventory Management</p>
+                    <p className="text-white/50 mt-2 text-sm">We Sell Mobile Phone Spares & Accessories</p>
+                    <p className="text-primary/60 text-[10px] mt-1 uppercase tracking-widest font-bold">Fast. Affordable. Trusted</p>
                 </div>
 
                 {error && <div className="text-red-400 text-sm mb-4 bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</div>}

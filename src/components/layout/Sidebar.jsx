@@ -68,11 +68,11 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
                     <div className="flex items-center justify-between px-4 mb-8 z-10">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-white/20 to-white/5 border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                                <div className="w-4 h-4 bg-white rounded-sm rotate-45"></div>
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-accent border border-white/20 flex items-center justify-center shadow-[0_0_20px_rgba(0,170,255,0.3)]">
+                                <span className="text-white font-bold text-xl tracking-tighter">AK</span>
                             </div>
-                            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 drop-shadow-sm font-sans tracking-tight">
-                                Lumina
+                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 drop-shadow-sm font-sans tracking-tight">
+                                AKISA LIMITED
                             </h1>
                         </div>
                     </div>

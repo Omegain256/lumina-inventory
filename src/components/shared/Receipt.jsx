@@ -67,8 +67,10 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                 <div className="p-8 overflow-y-auto max-h-[70vh]" ref={printRef}>
                     <div className="receipt-container">
                         <div className="header">
-                            <div className="store-name">Lumina Inventory</div>
-                            <div className="text-sm mt-1">Official Payment Receipt</div>
+                            <div className="store-name">AKISA LIMITED</div>
+                            <div className="text-[10px] mt-1 uppercase tracking-tighter">Mobile Spares & Accessories</div>
+                            <div className="text-[9px] text-gray-600 mt-1">Simara Mall, 1st Floor, Shop No. 1<br />Behind National Archives</div>
+                            <div className="text-[10px] font-bold mt-1">Call/WhatsApp: 0768 888 661</div>
                         </div>
 
                         <div className="details">
@@ -87,10 +89,10 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                         </div>
 
                         <div className="items">
-                            <div className="font-bold mb-3 uppercase text-xs tracking-wider border-b border-gray-100 pb-1">Items / Services</div>
+                            <div className="font-bold mb-3 uppercase text-[10px] tracking-wider border-b border-gray-100 pb-1">Items / Services</div>
                             <div className="item-row">
-                                <span>{data.deviceModel || data.itemName}</span>
-                                <span>Ksh {(Number(data.estimatedCost) || Number(data.total) || 0).toLocaleString()}</span>
+                                <span className="font-bold">{data.deviceModel || data.itemName}</span>
+                                <span className="font-bold">Ksh {(Number(data.estimatedCost) || Number(data.total) || 0).toLocaleString()}</span>
                             </div>
                             {data.repairType && (
                                 <div className="text-[10px] text-gray-500 italic ml-2">
@@ -100,14 +102,14 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                         </div>
 
                         <div className="total">
-                            <div className="text-xs font-normal text-gray-400">GRAND TOTAL</div>
+                            <div className="text-[10px] font-normal text-gray-400">GRAND TOTAL</div>
                             Ksh {(Number(data.estimatedCost) || Number(data.total) || 0).toLocaleString()}
                         </div>
 
                         <div className="footer">
-                            <div className="font-bold mb-1">Thank you for your business!</div>
-                            <div>Goods once sold are not returnable.</div>
-                            <div className="mt-4 text-[10px] text-gray-400">Powered by Lumina</div>
+                            <div className="font-bold mb-1">Fast. Affordable. Trusted</div>
+                            <div className="text-[10px]">Professional Repair & Screen Replacement</div>
+                            <div className="mt-2 text-[9px] border-t border-dashed border-gray-200 pt-2">Thank you for your business!<br />Goods once sold are not returnable.</div>
                         </div>
                     </div>
                 </div>
