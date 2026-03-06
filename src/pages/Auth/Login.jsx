@@ -1,11 +1,10 @@
 import { useAuth } from '../../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
-
+import { LogIn, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Login() {
-    const { loginWithEmail, loginWithGoogle, loginDemo, loginAsGuest, currentUser } = useAuth();
+    const { loginWithEmail, loginWithGoogle, currentUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -28,36 +27,6 @@ export default function Login() {
         }
     };
 
-    const handleGoogleLogin = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            await loginWithGoogle();
-        } catch (err) {
-            console.error("Login failed:", err);
-            setError(err.message);
-            setLoading(false);
-        }
-    };
-
-    const handleDemoLogin = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            await loginDemo();
-        } catch (err) {
-            console.error("Demo login failed:", err);
-            setError(err.message);
-            setLoading(false);
-        }
-    };
-
-
-    const handleGuestLogin = () => {
-        setLoading(true);
-        loginAsGuest();
-    };
-
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -76,70 +45,63 @@ export default function Login() {
 
                 {error && <div className="text-red-400 text-sm mb-4 bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</div>}
 
-                <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
-                    <div>
-                        <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-1.5 ml-1">Email Address</label>
-                        <input
-                            type="email"
-                            placeholder="name@company.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors"
-                        />
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase tracking-widest ml-1">Email Address</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Mail className="h-5 w-5 text-white/20 group-focus-within:text-primary transition-colors" />
+                            </div>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="block w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                                placeholder="name@akisa.com"
+                                required
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-1.5 ml-1">Password</label>
-                        <input
-                            type="password"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors"
-                        />
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase tracking-widest ml-1">Password</label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <Lock className="h-5 w-5 text-white/20 group-focus-within:text-primary transition-colors" />
+                            </div>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="block w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                                placeholder="••••••••"
+                                required
+                            />
+                        </div>
                     </div>
+
+                    <div className="flex items-center justify-between py-1">
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" className="w-4 h-4 rounded border-white/10 bg-white/5 checked:bg-primary transition-all cursor-pointer" />
+                            <span className="text-xs text-white/40 group-hover:text-white/60 transition-colors">Remember me</span>
+                        </label>
+                        <button type="button" className="text-xs text-primary/80 hover:text-primary transition-colors font-medium">Forgot password?</button>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-white text-black py-3.5 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                        className="w-full bg-white text-black py-4 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 active:scale-[0.98]"
                     >
-                        {loading ? "Signing in..." : "Sign In"}
+                        {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
+                        <ArrowRight className="w-4 h-4" />
                     </button>
                 </form>
 
-                <div className="relative mb-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0b] px-2 text-white/30">Quick Access</span></div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                    <button
-                        onClick={handleGuestLogin}
-                        disabled={loading}
-                        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2"
-                    >
-                        Explore Demo as Guest
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={handleGoogleLogin}
-                            disabled={loading}
-                            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
-                        >
-                            <span className="text-sm font-medium text-white/80">Google</span>
-                        </button>
-
-                        <button
-                            onClick={handleDemoLogin}
-                            disabled={loading}
-                            title="Sign in with demo account (Requires manual auth confirmation in Supabase)"
-                            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
-                        >
-                            <span className="text-sm font-medium text-white/60">Demo Login</span>
-                        </button>
-                    </div>
+                <div className="mt-10 pt-8 border-t border-white/5 text-center">
+                    <p className="text-white/30 text-xs">
+                        Don't have an account? <span className="text-primary/70 cursor-pointer hover:underline">Contact System Admin</span>
+                    </p>
                 </div>
             </div>
         </div>

@@ -32,16 +32,23 @@ export default function Workshift() {
     }, [currentUser]);
 
     const startShift = async () => {
+        if (activeShift) {
+            toast.error("You already have an active shift!");
+            return;
+        }
+
         try {
             const { error } = await supabase.from('workshifts').insert({
                 user_id: currentUser.id,
-                user_name: currentUser.email.split('@')[0], // Profile name could be fetched alternatively
+                user_name: currentUser.user_metadata?.name || currentUser.email.split('@')[0],
                 status: 'active',
+                start_time: new Date().toISOString(),
                 total_sales: 0,
                 sales_count: 0
             });
             if (error) throw error;
             toast.success("Shift started!");
+            fetchData();
         } catch (error) {
             toast.error("Failed to start shift");
         }

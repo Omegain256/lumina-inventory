@@ -18,7 +18,7 @@ export default function DashboardLayout() {
                     >
                         <Menu className="w-6 h-6 text-white" />
                     </button>
-                    <span className="ml-4 font-semibold text-lg tracking-wide">Lumina</span>
+                    <span className="ml-4 font-semibold text-lg tracking-wide uppercase">Akisa Limited</span>
                 </header>
 
                 <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">

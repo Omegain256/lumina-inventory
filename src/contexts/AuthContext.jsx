@@ -36,26 +36,13 @@ export const AuthProvider = ({ children }) => {
 
             if (error) {
                 console.error("Error fetching profile:", error);
-                // Fallback for demo user
-                if (user.email === 'demo@lumina.com' || user.isGuest) {
-                    setUserRole('admin');
-                } else {
-                    setUserRole('staff');
-                }
+                setUserRole('staff');
             } else {
                 setUserRole(data.role);
             }
         } else {
-            // Check for guest mode
-            const guest = localStorage.getItem('lumina_guest');
-            if (guest) {
-                const guestUser = JSON.parse(guest);
-                setCurrentUser(guestUser);
-                setUserRole('admin');
-            } else {
-                setCurrentUser(null);
-                setUserRole(null);
-            }
+            setCurrentUser(null);
+            setUserRole(null);
         }
         setLoading(false);
     }
@@ -74,25 +61,8 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
-    const loginDemo = async () => {
-        return loginWithEmail("demo@lumina.com", "password123");
-    };
-
-    const loginAsGuest = () => {
-        const guestUser = {
-            id: 'guest-' + Math.random().toString(36).substr(2, 9),
-            email: 'guest@lumina.demo',
-            display_name: 'Guest Explorer',
-            isGuest: true
-        };
-        localStorage.setItem('lumina_guest', JSON.stringify(guestUser));
-        setCurrentUser(guestUser);
-        setUserRole('admin');
-    };
-
     const logout = async () => {
         await supabase.auth.signOut();
-        localStorage.removeItem('lumina_guest');
         setCurrentUser(null);
         setUserRole(null);
     };
@@ -100,7 +70,7 @@ export const AuthProvider = ({ children }) => {
     const isAdmin = userRole === 'admin';
     const isManager = userRole === 'manager' || userRole === 'admin';
 
-    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, loginDemo, loginAsGuest, logout };
+    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, logout };
 
     return (
         <AuthContext.Provider value={value}>

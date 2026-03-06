@@ -1,14 +1,27 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
+import { supabase } from '../../config/supabase';
 
 export default function Receipt({ data, type = 'repair', onClose }) {
     const printRef = useRef();
+    const [settings, setSettings] = useState({
+        shop_name: 'AKISA LIMITED',
+        shop_address: 'Simara Mall, 1st Floor, Shop No. 1, Behind National Archives',
+        shop_phone: '0768 888 661',
+        receipt_header: 'AKISA LIMITED: We Sell Mobile Phone Spares & Accessories.',
+        receipt_footer: 'Fast. Affordable. Trusted. Goods once sold are not returnable.'
+    });
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            const { data: settingsData } = await supabase.from('settings').select('*').eq('id', 'global').single();
+            if (settingsData) setSettings(settingsData);
+        };
+        fetchSettings();
+    }, []);
 
     const handlePrint = () => {
         const printContent = printRef.current.innerHTML;
-        const originalContent = document.body.innerHTML;
-
-        // Create a temporary print container
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
@@ -21,7 +34,7 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                             line-height: 1.2;
                             color: #000;
                             background: #fff;
-                            width: 80mm; /* Standard thermal printer width */
+                            width: 80mm;
                             margin: 0 auto;
                         }
                         .header { text-align: center; margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
@@ -67,10 +80,10 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                 <div className="p-8 overflow-y-auto max-h-[70vh]" ref={printRef}>
                     <div className="receipt-container">
                         <div className="header">
-                            <div className="store-name">AKISA LIMITED</div>
-                            <div className="text-[10px] mt-1 uppercase tracking-tighter">Mobile Spares & Accessories</div>
-                            <div className="text-[9px] text-gray-600 mt-1">Simara Mall, 1st Floor, Shop No. 1<br />Behind National Archives</div>
-                            <div className="text-[10px] font-bold mt-1">Call/WhatsApp: 0768 888 661</div>
+                            <div className="store-name">{settings.shop_name}</div>
+                            <div className="text-[10px] mt-1 uppercase tracking-tighter">{settings.receipt_header}</div>
+                            <div className="text-[9px] text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: settings.shop_address.replace(/\n/g, '<br />') }} />
+                            <div className="text-[10px] font-bold mt-1">Call/WhatsApp: {settings.shop_phone}</div>
                         </div>
 
                         <div className="details">
@@ -109,7 +122,7 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                         <div className="footer">
                             <div className="font-bold mb-1">Fast. Affordable. Trusted</div>
                             <div className="text-[10px]">Professional Repair & Screen Replacement</div>
-                            <div className="mt-2 text-[9px] border-t border-dashed border-gray-200 pt-2">Thank you for your business!<br />Goods once sold are not returnable.</div>
+                            <div className="mt-2 text-[9px] border-t border-dashed border-gray-200 pt-2" dangerouslySetInnerHTML={{ __html: settings.receipt_footer.replace(/\n/g, '<br />') }} />
                         </div>
                     </div>
                 </div>

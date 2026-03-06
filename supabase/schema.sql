@@ -195,6 +195,16 @@ ALTER TABLE public.commissions ENABLE ROW LEVEL SECURITY;
 -- Policies
 create policy "Public profiles are viewable by everyone." on profiles for select using (true);
 create policy "Users can update their own profile." on profiles for update using (auth.uid() = id);
+create policy "Admins can update all profiles." on profiles for update using (
+  exists (
+    select 1 from profiles where id = auth.uid() and role = 'admin'
+  )
+);
+create policy "Admins can view all profiles." on profiles for select using (
+  exists (
+    select 1 from profiles where id = auth.uid() and role = 'admin'
+  )
+);
 create policy "All authenticated users can manage everything." on products for all using (auth.role() = 'authenticated');
 create policy "All authenticated users can manage everything sales." on sales for all using (auth.role() = 'authenticated');
 create policy "All authenticated users can manage everything workshifts." on workshifts for all using (auth.role() = 'authenticated');

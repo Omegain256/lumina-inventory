@@ -14,6 +14,18 @@ export default function Settings() {
     const [isSaving, setIsSaving] = useState(false);
     const { isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
+    const [shopSettings, setShopSettings] = useState({
+        shop_name: 'AKISA LIMITED',
+        shop_address: 'Simara Mall, 1st Floor, Shop No. 1, Behind National Archives',
+        shop_phone: '0768 888 661',
+        receipt_header: 'AKISA LIMITED: We Sell Mobile Phone Spares & Accessories.',
+        receipt_footer: 'Fast. Affordable. Trusted. Goods once sold are not returnable.'
+    });
+
+    const fetchSettings = async () => {
+        const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').single();
+        if (data) setShopSettings(data);
+    };
 
     const fetchUsers = async () => {
         const { data, error } = await supabase
@@ -24,6 +36,7 @@ export default function Settings() {
     };
 
     useEffect(() => {
+        fetchSettings();
         if (isAdmin) {
             fetchUsers();
             const channel = supabase.channel('profiles').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchUsers).subscribe();
@@ -39,8 +52,21 @@ export default function Settings() {
                 .eq('id', userId);
             if (error) throw error;
             toast.success(`Role updated to ${newRole}`);
+            fetchUsers();
         } catch (error) {
             toast.error("Failed to update role");
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!window.confirm("Are you sure you want to remove this user profile? This won't delete their auth account but will remove their access role.")) return;
+        try {
+            const { error } = await supabase.from('profiles').delete().eq('id', userId);
+            if (error) throw error;
+            toast.success("User profile removed");
+            fetchUsers();
+        } catch (error) {
+            toast.error("Failed to remove user");
         }
     };
 
@@ -58,12 +84,22 @@ export default function Settings() {
     const currentTab = tabs.find(t => t.id === currentTabId) || tabs[0];
 
     // Mock save function
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsSaving(true);
-        setTimeout(() => {
-            setIsSaving(false);
+        try {
+            const { error } = await supabase.from('settings').upsert({
+                id: 'global',
+                ...shopSettings,
+                updated_at: new Date().toISOString()
+            });
+            if (error) throw error;
             toast.success("Settings saved successfully.");
-        }, 800);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to save settings.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -73,7 +109,7 @@ export default function Settings() {
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 flex items-center gap-3">
                         Settings
                     </h1>
-                    <p className="text-white/50 mt-1">Manage your application and business configuration.</p>
+                    <p className="text-white/50 mt-1">Manage Akisa Limited application and business configuration.</p>
                 </div>
                 <button
                     onClick={handleSave}
@@ -145,7 +181,7 @@ export default function Settings() {
                                         </div>
                                         <div className="col-span-2">
                                             <label className="block text-sm font-medium text-white/70 mb-1.5">Email Address</label>
-                                            <input type="email" defaultValue="admin@lumina.com" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary" />
+                                            <input type="email" defaultValue="admin@akisalimited.com" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary" />
                                         </div>
                                     </div>
                                 </>
@@ -173,7 +209,7 @@ export default function Settings() {
                                     <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-white/5 rounded-xl">
                                         <div>
                                             <h4 className="font-bold text-white">Dark Mode</h4>
-                                            <p className="text-sm text-white/50 mt-1">Lumina is designed natively in dark mode.</p>
+                                            <p className="text-sm text-white/50 mt-1">Akisa Limited is designed natively in dark mode.</p>
                                         </div>
                                         <div className="w-12 h-6 bg-primary rounded-full relative opacity-50 cursor-not-allowed">
                                             <div className="w-4 h-4 bg-black rounded-full absolute right-1 top-1"></div>
@@ -203,15 +239,30 @@ export default function Settings() {
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium text-white/70 mb-1.5">Store Name</label>
-                                        <input type="text" defaultValue="Lumina Test Store" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary" />
+                                        <input
+                                            type="text"
+                                            value={shopSettings.shop_name}
+                                            onChange={(e) => setShopSettings({ ...shopSettings, shop_name: e.target.value })}
+                                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                        />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-white/70 mb-1.5">Business Registration Number</label>
-                                        <input type="text" defaultValue="BN-1234567" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary" />
+                                        <label className="block text-sm font-medium text-white/70 mb-1.5">Store Phone</label>
+                                        <input
+                                            type="text"
+                                            value={shopSettings.shop_phone}
+                                            onChange={(e) => setShopSettings({ ...shopSettings, shop_phone: e.target.value })}
+                                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-white/70 mb-1.5">Main Headquarter Address</label>
-                                        <input type="text" defaultValue="Nairobi CBD, Moi Avenue" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary" />
+                                        <input
+                                            type="text"
+                                            value={shopSettings.shop_address}
+                                            onChange={(e) => setShopSettings({ ...shopSettings, shop_address: e.target.value })}
+                                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -220,11 +271,21 @@ export default function Settings() {
                                 <div className="space-y-6">
                                     <div>
                                         <label className="block text-sm font-medium text-white/70 mb-1.5">Receipt Header Message</label>
-                                        <textarea rows="2" defaultValue="Welcome to Lumina Store! We sell the best phones." className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary resize-none" />
+                                        <textarea
+                                            rows="2"
+                                            value={shopSettings.receipt_header}
+                                            onChange={(e) => setShopSettings({ ...shopSettings, receipt_header: e.target.value })}
+                                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary resize-none"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-white/70 mb-1.5">Receipt Footer Message</label>
-                                        <textarea rows="2" defaultValue="Thank you for your business. Goods once sold are not returnable." className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary resize-none" />
+                                        <textarea
+                                            rows="2"
+                                            value={shopSettings.receipt_footer}
+                                            onChange={(e) => setShopSettings({ ...shopSettings, receipt_footer: e.target.value })}
+                                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary resize-none"
+                                        />
                                     </div>
                                     <div className="flex items-center justify-between p-4 bg-[#0a0a0a] border border-white/5 rounded-xl">
                                         <div>
@@ -298,7 +359,7 @@ export default function Settings() {
                             {currentTabId === 'users' && isAdmin && (
                                 <div className="space-y-6">
                                     <div className="flex justify-between items-center mb-4">
-                                        <p className="text-white/50 text-sm italic">Manage system users and their access levels.</p>
+                                        <p className="text-white/50 text-sm italic">Note: To add new users, create them in the Supabase Dashboard. Here you can assign roles or revoke access.</p>
                                     </div>
                                     <div className="space-y-4">
                                         {users.length === 0 ? (
@@ -332,6 +393,13 @@ export default function Settings() {
                                                                 <option value="staff">Staff</option>
                                                             </select>
                                                         </div>
+                                                        <button
+                                                            onClick={() => handleDeleteUser(user.id)}
+                                                            className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                                                            title="Delete Profile"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </div>
                                             ))
