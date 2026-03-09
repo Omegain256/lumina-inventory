@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
 import { Users, Wrench, Smartphone, DollarSign, Calculator, Calendar } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function CommissionReport() {
+    const { currentUser, isAdmin, isManager } = useAuth();
     const [repairs, setRepairs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Clock, Play, Square, User, TrendingUp, Calendar, AlertCircle } from 'lucide-react';
+import { Clock, Play, Square, User, TrendingUp, Calendar, AlertCircle, Filter, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Workshift() {
@@ -9,6 +9,8 @@ export default function Workshift() {
     const [shifts, setShifts] = useState([]);
     const [activeShift, setActiveShift] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [staffFilter, setStaffFilter] = useState('all');
+    const [workers, setWorkers] = useState([]);
 
     const fetchData = async () => {
         const { data, error } = await supabase
@@ -20,6 +22,12 @@ export default function Workshift() {
             setShifts(data);
             const active = data.find(s => s.user_id === currentUser?.id && s.status === 'active');
             setActiveShift(active || null);
+        }
+
+        // If admin, fetch all workers for the filter
+        if (userRole === 'admin') {
+            const { data: profiles } = await supabase.from('profiles').select('id, name, email');
+            if (profiles) setWorkers(profiles);
         }
         setLoading(false);
     };
@@ -56,14 +64,17 @@ export default function Workshift() {
 
     const endShift = async () => {
         if (!activeShift) return;
+        await handleEndShift(activeShift.id, activeShift.user_id, activeShift.start_time);
+    };
 
+    const handleEndShift = async (shiftId, userId, startTime) => {
         try {
             // Find sales made during this shift
             const { data: sales, error: salesError } = await supabase
                 .from('sales')
                 .select('total_amount')
-                .eq('user_id', currentUser.id)
-                .gte('created_at', activeShift.start_time);
+                .eq('user_id', userId)
+                .gte('created_at', startTime);
 
             if (salesError) throw salesError;
 
@@ -78,15 +89,20 @@ export default function Workshift() {
                     total_sales: totalSales,
                     sales_count: salesCount
                 })
-                .eq('id', activeShift.id);
+                .eq('id', shiftId);
 
             if (updateError) throw updateError;
             toast.success("Shift ended successfully!");
+            fetchData();
         } catch (error) {
             console.error(error);
             toast.error("Failed to end shift");
         }
     };
+
+    const filteredShifts = staffFilter === 'all'
+        ? shifts
+        : shifts.filter(s => s.user_id === staffFilter);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -148,9 +164,27 @@ export default function Workshift() {
             )}
 
             <div className="grid grid-cols-1 gap-4">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2 mt-4 px-2">
-                    <Calendar className="w-5 h-5 text-white/40" /> Recent Shift History
-                </h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-4 px-2">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-white/40" /> Recent Shift History
+                    </h2>
+
+                    {userRole === 'admin' && (
+                        <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-primary transition-all">
+                            <Filter className="w-4 h-4 text-white/40" />
+                            <select
+                                value={staffFilter}
+                                onChange={(e) => setStaffFilter(e.target.value)}
+                                className="bg-transparent text-sm text-white focus:outline-none appearance-none pr-6 cursor-pointer"
+                            >
+                                <option value="all">All Employees</option>
+                                {workers.map(worker => (
+                                    <option key={worker.id} value={worker.id}>{worker.name || worker.email}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
                 {shifts.length === 0 ? (
                     <div className="glass-panel p-12 flex flex-col items-center justify-center text-white/30 gap-4">
                         <AlertCircle className="w-12 h-12 opacity-30" />
@@ -158,12 +192,23 @@ export default function Workshift() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {shifts.map(shift => (
+                        {filteredShifts.map(shift => (
                             <div key={shift.id} className={`glass-panel p-5 flex flex-col gap-4 relative group hover:border-white/20 transition-all ${shift.status === 'active' ? 'border-primary/40' : ''}`}>
                                 <div className="flex justify-between items-center">
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter border ${shift.status === 'active' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-white/40 border-white/10'}`}>
-                                        {shift.status}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter border ${shift.status === 'active' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-white/40 border-white/10'}`}>
+                                            {shift.status}
+                                        </span>
+                                        {userRole === 'admin' && shift.status === 'active' && shift.user_id !== currentUser?.id && (
+                                            <button
+                                                onClick={() => handleEndShift(shift.id, shift.user_id, shift.start_time)}
+                                                className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"
+                                                title="Force End Shift"
+                                            >
+                                                <Power className="w-3 h-3" /> Force End
+                                            </button>
+                                        )}
+                                    </div>
                                     <span className="text-xs text-white/30 font-mono">
                                         {shift.start_time ? new Date(shift.start_time).toLocaleDateString() : 'Pending...'}
                                     </span>

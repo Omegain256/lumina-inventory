@@ -83,7 +83,9 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                             <div className="store-name">{settings.shop_name}</div>
                             <div className="text-[10px] mt-1 uppercase tracking-tighter">{settings.receipt_header}</div>
                             <div className="text-[9px] text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: settings.shop_address.replace(/\n/g, '<br />') }} />
-                            <div className="text-[10px] font-bold mt-1">Call/WhatsApp: {settings.shop_phone}</div>
+                            <div className="text-[10px] font-bold mt-1">Call: {settings.shop_phone}</div>
+                            {settings.whatsapp_phone && <div className="text-[10px] font-bold">WhatsApp: {settings.whatsapp_phone}</div>}
+                            {settings.kra_pin && <div className="text-[10px] uppercase font-bold text-gray-700 mt-1">PIN: {settings.kra_pin}</div>}
                         </div>
 
                         <div className="details">
@@ -119,10 +121,30 @@ export default function Receipt({ data, type = 'repair', onClose }) {
                             Ksh {(Number(data.estimatedCost) || Number(data.total) || 0).toLocaleString()}
                         </div>
 
+                        {settings.paybill_number && (
+                            <div className="mt-6 border-t border-dashed border-gray-200 pt-4">
+                                <div className="font-bold text-[10px] uppercase mb-2 text-center text-gray-800">Payment Options</div>
+                                <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                                    <div className="flex justify-between text-[10px]">
+                                        <span className="text-gray-500">M-Pesa Paybill:</span>
+                                        <span className="font-bold">{settings.paybill_number}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px]">
+                                        <span className="text-gray-500">Account:</span>
+                                        <span className="font-bold">{settings.account_number}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px]">
+                                        <span className="text-gray-500">Account Name:</span>
+                                        <span className="font-bold">{settings.account_name}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="footer">
                             <div className="font-bold mb-1">Fast. Affordable. Trusted</div>
                             <div className="text-[10px]">Professional Repair & Screen Replacement</div>
-                            <div className="mt-2 text-[9px] border-t border-dashed border-gray-200 pt-2" dangerouslySetInnerHTML={{ __html: settings.receipt_footer.replace(/\n/g, '<br />') }} />
+                            <div className="mt-2 text-[9px] border-t border-dashed border-gray-200 pt-2" dangerouslySetInnerHTML={{ __html: (settings.receipt_footer || '').replace(/\n/g, '<br />') }} />
                         </div>
                     </div>
                 </div>

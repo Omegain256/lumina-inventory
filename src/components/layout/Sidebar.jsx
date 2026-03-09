@@ -120,6 +120,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
                         <NavGroup title="Services">
                             <NavItem to="/repairs" icon={Wrench} label="Repairs" onClick={() => setIsOpen(false)} />
+                            <NavItem to="/reports/commission" icon={HandCoins} label="Commission" onClick={() => setIsOpen(false)} />
                         </NavGroup>
 
                         <NavGroup title="Settings">

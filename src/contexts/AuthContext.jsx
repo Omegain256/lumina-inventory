@@ -50,14 +50,12 @@ export const AuthProvider = ({ children }) => {
     const loginWithEmail = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        localStorage.removeItem('lumina_guest');
         return data;
     };
 
     const loginWithGoogle = async () => {
         const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
         if (error) throw error;
-        localStorage.removeItem('lumina_guest');
         return data;
     };
 

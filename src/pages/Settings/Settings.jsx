@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Key, SlidersHorizontal, Settings2, Receipt, CreditCard, Bell, Save, Users, Shield, Mail, Trash2 } from 'lucide-react';
+import { User, Key, SlidersHorizontal, Settings2, Receipt, CreditCard, Bell, Save, Users, Shield, Mail, Trash2, Plus, X, Loader2 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
 import toast from 'react-hot-toast';
@@ -19,8 +20,16 @@ export default function Settings() {
         shop_address: 'Simara Mall, 1st Floor, Shop No. 1, Behind National Archives',
         shop_phone: '0768 888 661',
         receipt_header: 'AKISA LIMITED: We Sell Mobile Phone Spares & Accessories.',
-        receipt_footer: 'Fast. Affordable. Trusted. Goods once sold are not returnable.'
+        receipt_footer: 'Fast. Affordable. Trusted. Goods once sold are not returnable.',
+        kra_pin: 'P052225992Z',
+        whatsapp_phone: '0768 888 661',
+        paybill_number: '516600',
+        account_number: '777767',
+        account_name: 'Akisa Limited.'
     });
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isAddingStaff, setIsAddingStaff] = useState(false);
+    const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'staff' });
 
     const fetchSettings = async () => {
         const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').single();
@@ -67,6 +76,55 @@ export default function Settings() {
             fetchUsers();
         } catch (error) {
             toast.error("Failed to remove user");
+        }
+    };
+
+    const handleAddStaff = async (e) => {
+        e.preventDefault();
+        setIsAddingStaff(true);
+        try {
+            // Create a temporary client that doesn't persist the session
+            // This allows us to sign up a new user without logging out the current admin
+            const tempClient = createClient(
+                import.meta.env.VITE_SUPABASE_URL || 'https://qezekvatrufxrxjpzdea.supabase.co',
+                import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_JJVL0uWY-qiQ6Y0c0oec7A__ljh1VVm',
+                { auth: { persistSession: false } }
+            );
+
+            const { data: authData, error: authError } = await tempClient.auth.signUp({
+                email: newStaff.email,
+                password: newStaff.password,
+                options: {
+                    data: { name: newStaff.name }
+                }
+            });
+
+            if (authError) throw authError;
+
+            // The profile might already be created by the handle_new_user trigger, 
+            // but we want to ensure the role and name are correct
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    name: newStaff.name,
+                    role: newStaff.role
+                })
+                .eq('id', authData.user.id);
+
+            if (profileError) {
+                console.error("Profile update error:", profileError);
+                // Not a fatal error as the trigger might have created it
+            }
+
+            toast.success("Staff account created! They will need to confirm their email.");
+            setIsAddModalOpen(false);
+            setNewStaff({ name: '', email: '', password: '', role: 'staff' });
+            fetchUsers();
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message || "Failed to add staff");
+        } finally {
+            setIsAddingStaff(false);
         }
     };
 
@@ -264,6 +322,56 @@ export default function Settings() {
                                             className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
                                         />
                                     </div>
+                                    <div className="pt-6 border-t border-white/5">
+                                        <h3 className="text-lg font-bold text-white mb-4">Banking & Payment Info</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-white/70 mb-1.5">KRA PIN</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopSettings.kra_pin || ''}
+                                                    onChange={(e) => setShopSettings({ ...shopSettings, kra_pin: e.target.value })}
+                                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-white/70 mb-1.5">WhatsApp / Call</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopSettings.whatsapp_phone || ''}
+                                                    onChange={(e) => setShopSettings({ ...shopSettings, whatsapp_phone: e.target.value })}
+                                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-white/70 mb-1.5">M-Pesa Paybill</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopSettings.paybill_number || ''}
+                                                    onChange={(e) => setShopSettings({ ...shopSettings, paybill_number: e.target.value })}
+                                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-white/70 mb-1.5">Account Number</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopSettings.account_number || ''}
+                                                    onChange={(e) => setShopSettings({ ...shopSettings, account_number: e.target.value })}
+                                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-medium text-white/70 mb-1.5">Account Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopSettings.account_name || ''}
+                                                    onChange={(e) => setShopSettings({ ...shopSettings, account_name: e.target.value })}
+                                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -359,7 +467,13 @@ export default function Settings() {
                             {currentTabId === 'users' && isAdmin && (
                                 <div className="space-y-6">
                                     <div className="flex justify-between items-center mb-4">
-                                        <p className="text-white/50 text-sm italic">Note: To add new users, create them in the Supabase Dashboard. Here you can assign roles or revoke access.</p>
+                                        <p className="text-white/50 text-sm italic">Note: Manage roles, remove access, or create new staff accounts.</p>
+                                        <button
+                                            onClick={() => setIsAddModalOpen(true)}
+                                            className="bg-primary/20 text-primary border border-primary/30 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-primary hover:text-black transition-all"
+                                        >
+                                            <Plus className="w-4 h-4" /> Add New Staff
+                                        </button>
                                     </div>
                                     <div className="space-y-4">
                                         {users.length === 0 ? (
@@ -412,6 +526,92 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+            {/* ADD STAFF MODAL */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="glass-panel w-full max-w-md p-8 border-primary/20 shadow-[0_0_50px_rgba(11,211,211,0.1)] relative">
+                        <button
+                            onClick={() => setIsAddModalOpen(false)}
+                            className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                                <Users className="w-6 h-6 text-primary" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Add New Staff</h3>
+                                <p className="text-white/40 text-xs">Create a new login for your employee.</p>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleAddStaff} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-1.5 ml-1">Full Name</label>
+                                <input
+                                    required
+                                    type="text"
+                                    value={newStaff.name}
+                                    onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+                                    placeholder="Enter full name"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors placeholder:text-white/20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
+                                <input
+                                    required
+                                    type="email"
+                                    value={newStaff.email}
+                                    onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
+                                    placeholder="staff@akisalimited.com"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors placeholder:text-white/20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-1.5 ml-1">Password</label>
+                                <input
+                                    required
+                                    min={6}
+                                    type="password"
+                                    value={newStaff.password}
+                                    onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                                    placeholder="Minimum 6 characters"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors placeholder:text-white/20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-1.5 ml-1">System Role</label>
+                                <select
+                                    value={newStaff.role}
+                                    onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors appearance-none"
+                                >
+                                    <option value="staff">Staff (Sales/Repairs)</option>
+                                    <option value="manager">Manager (Inventory/Reports)</option>
+                                    <option value="admin">Admin (Full Control)</option>
+                                </select>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isAddingStaff}
+                                className="w-full bg-primary text-black font-bold py-4 rounded-xl mt-6 flex items-center justify-center gap-2 hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(11,211,211,0.2)] disabled:opacity-50"
+                            >
+                                {isAddingStaff ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" /> Creating Account...
+                                    </>
+                                ) : (
+                                    <>Create Staff Account</>
+                                )}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

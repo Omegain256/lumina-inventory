@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function AddProduct() {
     const navigate = useNavigate();
+    const { isAdmin } = useAuth();
     const [loading, setLoading] = useState(false);
 
     // Form state corresponding to the UI
@@ -174,10 +176,12 @@ export default function AddProduct() {
                 <section>
                     <SectionHeader number="2" title="PRICING & STOCK" />
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-8 border-b border-white/5">
-                        <div>
-                            <Label required>PURCHASE PRICE</Label>
-                            <input type="number" name="purchasePrice" required min="0" step="0.01" value={formData.purchasePrice} onChange={handleChange} className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors" />
-                        </div>
+                        {isAdmin && (
+                            <div>
+                                <Label required>PURCHASE PRICE</Label>
+                                <input type="number" name="purchasePrice" required min="0" step="0.01" value={formData.purchasePrice} onChange={handleChange} className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors" />
+                            </div>
+                        )}
                         <div>
                             <Label required>SELLING PRICE</Label>
                             <input type="number" name="sellingPrice" required min="0" step="0.01" value={formData.sellingPrice} onChange={handleChange} className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors" />

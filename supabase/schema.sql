@@ -232,4 +232,22 @@ CREATE TABLE IF NOT EXISTS public.inventory_transactions (
 ALTER TABLE public.inventory_transactions ENABLE ROW LEVEL SECURITY;
 
 -- Policies
-create policy "All authenticated users can manage everything inventory_transactions." on inventory_transactions for all using (auth.role() = 'authenticated');
+-- Settings table
+CREATE TABLE IF NOT EXISTS public.settings (
+    id TEXT PRIMARY KEY, -- 'global'
+    shop_name TEXT,
+    shop_address TEXT,
+    shop_phone TEXT,
+    receipt_header TEXT,
+    receipt_footer TEXT,
+    kra_pin TEXT,
+    whatsapp_phone TEXT,
+    paybill_number TEXT,
+    account_number TEXT,
+    account_name TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Policies
+create policy "All authenticated users can manage settings." on settings for all using (auth.role() = 'authenticated');
+
