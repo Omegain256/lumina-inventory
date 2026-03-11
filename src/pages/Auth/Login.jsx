@@ -4,7 +4,7 @@ import { LogIn, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Login() {
-    const { loginWithEmail, loginWithGoogle, currentUser } = useAuth();
+    const { loginWithEmail, currentUser } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);

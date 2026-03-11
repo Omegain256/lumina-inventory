@@ -1,22 +1,55 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
-import { BarChart3, TrendingUp, HandCoins, CalendarDays, Wallet, Banknote, Users, Activity } from 'lucide-react';
+import { BarChart3, TrendingUp, Wallet, Banknote, Users, Activity } from 'lucide-react';
 import { useLocation, NavLink } from 'react-router-dom';
+
+// eslint-disable-next-line no-unused-vars
+const MetricCard = ({ title, value, subtitle, icon: Icon, colorClass }) => (
+    <div className="glass-panel p-6 flex flex-col gap-3 relative overflow-hidden group">
+        <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${colorClass} opacity-10 rounded-full blur-xl group-hover:opacity-20 transition-opacity duration-500`} />
+        <div className="flex justify-between items-start z-10">
+            <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} bg-opacity-10 backdrop-blur-md border border-white/10`}>
+                <Icon className="w-6 h-6 text-white" />
+            </div>
+        </div>
+        <div className="z-10 mt-2">
+            <h3 className="text-white/50 text-sm font-medium tracking-wide mb-1">{title}</h3>
+            <div className="text-3xl font-bold text-white tracking-tight">{value}</div>
+            {subtitle && <p className="text-xs text-white/40 mt-2">{subtitle}</p>}
+        </div>
+    </div>
+);
 
 export default function ReportsDashboard() {
     const location = useLocation();
     const [sales, setSales] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    const [metrics, setMetrics] = useState({ revenue: 0, cost: 0, grossProfit: 0 });
 
     const fetchData = async () => {
-        const { data: salesData } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
-        if (salesData) setSales(salesData);
+        const { data: salesData } = await supabase.from('sales').select('*, sale_items(quantity, unit_price, product_id, product:products(cost))').order('created_at', { ascending: false });
+        if (salesData) {
+            setSales(salesData);
+            let revenue = 0;
+            let cost = 0;
+            salesData.forEach(sale => {
+                revenue += (sale.total_amount || 0);
+                if (sale.sale_items && sale.sale_items.length > 0) {
+                    sale.sale_items.forEach(item => {
+                        const itemCost = Number(item.product?.cost) || 0;
+                        cost += (itemCost * item.quantity);
+                    });
+                }
+            });
+            setMetrics({ revenue, cost, grossProfit: revenue - cost });
+        }
 
         const { data: txData } = await supabase.from('inventory_transactions').select('*').order('created_at', { ascending: false });
         if (txData) setTransactions(txData);
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchData();
         const salesChannel = supabase.channel('sales').on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, fetchData).subscribe();
         const txChannel = supabase.channel('inventory_transactions').on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_transactions' }, fetchData).subscribe();
@@ -27,30 +60,11 @@ export default function ReportsDashboard() {
     }, []);
 
     // Calculate metrics
-    const totalRevenue = sales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
+    const totalRevenue = metrics.revenue;
     const totalSalesCount = sales.length;
-
-    // Simplistic cost assumption for demo: purchase prices are in transactions, or we just mock a 40% margin
-    const estimatedCost = totalRevenue * 0.6;
-    const grossProfit = totalRevenue - estimatedCost;
+    const grossProfit = metrics.grossProfit;
 
     const currentTab = location.pathname.split('/').pop();
-
-    const MetricCard = ({ title, value, subtitle, icon: Icon, colorClass }) => (
-        <div className="glass-panel p-6 flex flex-col gap-3 relative overflow-hidden group">
-            <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${colorClass} opacity-10 rounded-full blur-xl group-hover:opacity-20 transition-opacity duration-500`} />
-            <div className="flex justify-between items-start z-10">
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClass} bg-opacity-10 backdrop-blur-md border border-white/10`}>
-                    <Icon className="w-6 h-6 text-white" />
-                </div>
-            </div>
-            <div className="z-10 mt-2">
-                <h3 className="text-white/50 text-sm font-medium tracking-wide mb-1">{title}</h3>
-                <div className="text-3xl font-bold text-white tracking-tight">{value}</div>
-                {subtitle && <p className="text-xs text-white/40 mt-2">{subtitle}</p>}
-            </div>
-        </div>
-    );
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -79,7 +93,7 @@ export default function ReportsDashboard() {
                 <MetricCard
                     title="Gross Profit"
                     value={`Ksh ${grossProfit.toLocaleString()}`}
-                    subtitle="Estimated ~40% margin"
+                    subtitle="Based on actual product costs"
                     icon={TrendingUp}
                     colorClass="from-blue-500 to-cyan-600"
                 />

@@ -3,26 +3,13 @@ import { supabase } from '../config/supabase';
 
 const AuthContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Initial session check
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            handleUserChange(session?.user ?? null);
-        });
-
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            handleUserChange(session?.user ?? null);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
 
     async function handleUserChange(user) {
         if (user) {
@@ -47,6 +34,22 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }
 
+    useEffect(() => {
+        // Initial session check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            handleUserChange(session?.user ?? null);
+        });
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            handleUserChange(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+
+
     const loginWithEmail = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -65,8 +68,8 @@ export const AuthProvider = ({ children }) => {
         setUserRole(null);
     };
 
-    const isAdmin = userRole === 'admin';
-    const isManager = userRole === 'manager' || userRole === 'admin';
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+    const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'super_admin';
 
     const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, logout };
 

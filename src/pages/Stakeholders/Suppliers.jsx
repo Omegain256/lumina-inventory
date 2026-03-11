@@ -16,7 +16,7 @@ export default function Suppliers() {
     });
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('suppliers')
             .select('*')
             .order('created_at', { ascending: false });

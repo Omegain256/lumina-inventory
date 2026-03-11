@@ -3,8 +3,10 @@ import { supabase } from '../../config/supabase';
 import { Plus, Package, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ProductList() {
+    const { isAdmin, isManager } = useAuth();
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState({});
     const [brands, setBrands] = useState({});
@@ -106,13 +108,17 @@ export default function ProductList() {
                                         <td className="p-4 text-center text-white/60 bg-white/[0.01]">{units[p.unit_id] || '-'}</td>
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Edit className="w-4 h-4" /></button>
-                                                <button
-                                                    onClick={() => handleDelete(p.id)}
-                                                    className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {(isAdmin || isManager) && (
+                                                    <>
+                                                        <button className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Edit className="w-4 h-4" /></button>
+                                                        <button
+                                                            onClick={() => handleDelete(p.id)}
+                                                            className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

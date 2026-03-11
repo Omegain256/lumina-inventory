@@ -23,11 +23,13 @@ function CreateTransactionModal({ isOpen, onClose, products }) {
 
         try {
             const product = products.find(p => p.id === formData.productId);
+            const quantityAmt = Number(formData.quantity);
 
-            const { error } = await supabase.from('inventory_transactions').insert({
+            // 1. Record the transaction
+            const { error: txError } = await supabase.from('inventory_transactions').insert({
                 product_id: formData.productId,
                 type: formData.type,
-                quantity: Number(formData.quantity),
+                quantity: quantityAmt,
                 product_name: product?.name || 'Unknown',
                 product_sku: product?.sku || '',
                 created_by: currentUser?.email || 'Demo User',
@@ -35,9 +37,33 @@ function CreateTransactionModal({ isOpen, onClose, products }) {
                 notes: formData.notes
             });
 
-            if (error) throw error;
+            if (txError) throw txError;
 
-            toast.success(`${formData.type === 'purchase' ? 'Purchase' : 'Return'} recorded successfully!`);
+            // 2. Adjust central inventory (Products table holds main stock)
+            // Determine if we are adding or subtracting stock
+            const isPurchase = formData.type === 'purchase';
+
+            // Get current stock
+            const { data: currentProduct, error: fetchError } = await supabase
+                .from('products')
+                .select('stock_quantity')
+                .eq('id', formData.productId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            const newStock = isPurchase
+                ? (currentProduct.stock_quantity || 0) + quantityAmt
+                : Math.max(0, (currentProduct.stock_quantity || 0) - quantityAmt); // Prevent negative stock on returns
+
+            const { error: updateError } = await supabase
+                .from('products')
+                .update({ stock_quantity: newStock })
+                .eq('id', formData.productId);
+
+            if (updateError) throw updateError;
+
+            toast.success(`${isPurchase ? 'Purchase' : 'Return'} recorded successfully!`);
             onClose();
         } catch (error) {
             console.error("Error creating transaction:", error);
@@ -183,6 +209,7 @@ export default function PurchasesReturns() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchData();
         const prodChannel = supabase.channel('products').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchData).subscribe();
         const txChannel = supabase.channel('inventory_transactions').on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_transactions' }, fetchData).subscribe();
@@ -284,8 +311,8 @@ export default function PurchasesReturns() {
                                                     <Package className="w-4 h-4 text-white/50" />
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium text-white">{t.productName}</div>
-                                                    <div className="text-xs text-white/40">{t.productSku}</div>
+                                                    <div className="font-medium text-white">{t.product_name}</div>
+                                                    <div className="text-xs text-white/40">{t.product_sku}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -293,7 +320,7 @@ export default function PurchasesReturns() {
                                         <td className="p-4 text-right font-mono text-white/80">
                                             {t.type === 'purchase' ? '+' : '-'}{t.quantity}
                                         </td>
-                                        <td className="p-4 text-white/50 text-sm">{t.createdBy}</td>
+                                        <td className="p-4 text-white/50 text-sm">{t.created_by}</td>
                                     </tr>
                                 ))
                             )}

@@ -115,7 +115,7 @@ export default function CreateTransferModal({ isOpen, onClose }) {
                         >
                             <option value="">Choose item...</option>
                             {availableProducts.map(p => (
-                                <option key={p.id} value={p.id}>{p.name} (Max: {availableInventory.find(i => i.productId === p.id).quantity})</option>
+                                <option key={p.id} value={p.id}>{p.name} (Max: {availableInventory.find(i => i.product_id === p.id).quantity})</option>
                             ))}
                         </select>
                     </div>

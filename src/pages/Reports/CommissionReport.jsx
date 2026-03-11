@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
-import { Users, Wrench, Smartphone, DollarSign, Calculator, Calendar } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-
+import { Users, Wrench, Smartphone, Calculator, Calendar } from 'lucide-react';
 export default function CommissionReport() {
-    const { currentUser, isAdmin, isManager } = useAuth();
     const [repairs, setRepairs] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
         const fetchRepairs = async () => {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('repairs')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -19,10 +15,15 @@ export default function CommissionReport() {
                 setRepairs(data.map(d => ({
                     ...d,
                     createdAt: new Date(d.created_at),
-                    estimatedCost: d.cost, // mapping schema 'cost' to expected 'estimatedCost'
+                    cost: Number(d.cost) || 0,
+                    commission_percentage: Number(d.commission_percentage) || 0,
+                    technician: d.technician,
+                    device_name: d.device_name,
+                    mobile_type: d.mobile_type,
+                    service_category: d.service_category,
+                    repair_type: d.repair_type
                 })));
             }
-            setLoading(false);
         };
 
         fetchRepairs();
@@ -39,9 +40,12 @@ export default function CommissionReport() {
 
     const technicianStats = filteredRepairs.reduce((acc, job) => {
         if (!job.technician) return acc;
+        // Only include jobs that are finished or delivered in the "Due" calculation
+        if (job.status === 'Pending' || job.status === 'In Progress' || job.status === 'Waiting for Parts') return acc;
+
         const tech = job.technician;
-        const cost = Number(job.estimatedCost) || 0;
-        const commPercent = Number(job.commissionPercentage) || 0;
+        const cost = job.cost;
+        const commPercent = job.commission_percentage;
         const due = (cost * commPercent) / 100;
 
         if (!acc[tech]) {
@@ -138,23 +142,23 @@ export default function CommissionReport() {
                                             <td className="p-4">
                                                 <div className="text-white/80 flex items-center gap-2">
                                                     <Smartphone className="w-3 h-3 text-primary" />
-                                                    {job.mobileType || job.deviceModel}
+                                                    {job.mobile_type || job.device_name}
                                                 </div>
                                                 <div className="text-[10px] text-white/40 mt-1 flex gap-2">
-                                                    <span className="bg-white/5 px-1.5 py-0.5 rounded italic">{job.serviceCategory || 'Repair'}</span>
+                                                    <span className="bg-white/5 px-1.5 py-0.5 rounded italic">{job.service_category || 'Repair'}</span>
                                                     <span>-</span>
-                                                    <span>{job.repairType || 'General'}</span>
+                                                    <span>{job.repair_type || 'General'}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4 font-mono text-white/70">
-                                                Ksh {(Number(job.estimatedCost) || 0).toLocaleString()}
+                                                Ksh {job.cost.toLocaleString()}
                                             </td>
                                             <td className="p-4 text-white/60">
-                                                {job.commissionPercentage || 0}%
+                                                {job.commission_percentage || 0}%
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="font-bold text-primary font-mono bg-primary/10 px-2 py-1 rounded inline-block">
-                                                    Ksh {((Number(job.estimatedCost) * (Number(job.commissionPercentage) || 0)) / 100).toLocaleString()}
+                                                    Ksh {((job.cost * (job.commission_percentage || 0)) / 100).toLocaleString()}
                                                 </div>
                                             </td>
                                         </tr>

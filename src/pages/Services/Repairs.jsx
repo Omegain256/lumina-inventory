@@ -29,7 +29,7 @@ export default function Repairs() {
     const statuses = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered'];
 
     const fetchRepairs = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('repairs')
             .select('*')
             .order('created_at', { ascending: false });
@@ -37,7 +37,7 @@ export default function Repairs() {
     };
 
     const fetchCustomers = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('customers')
             .select('*')
             .order('name');
@@ -62,11 +62,15 @@ export default function Repairs() {
             const { error } = await supabase.from('repairs').insert({
                 customer_id: formData.customerId,
                 device_name: formData.deviceModel,
+                imei: formData.imei,
                 issue_description: formData.issueDescription,
                 status: formData.status,
                 cost: Number(formData.estimatedCost),
-                // Note: The original schema might need extending for imei, technician, etc.
-                // For now, I'll map what's in the schema and maybe update schema if needed.
+                technician: formData.technician,
+                repair_type: formData.repairType,
+                service_category: formData.serviceCategory,
+                mobile_type: formData.mobileType,
+                commission_percentage: Number(formData.commissionPercentage)
             });
             if (error) throw error;
             toast.success("Repair job created!");
@@ -84,6 +88,38 @@ export default function Repairs() {
         try {
             const { error } = await supabase.from('repairs').update({ status: newStatus }).eq('id', repairId);
             if (error) throw error;
+
+            // Auto-create sale when completed
+            if (newStatus === 'Completed' || newStatus === 'Delivered') {
+                const repair = repairs.find(r => r.id === repairId);
+                if (repair && repair.cost > 0) {
+
+                    // Check if already paid to prevent double entry
+                    const { data: existingSale } = await supabase
+                        .from('sales')
+                        .select('id')
+                        .eq('payment_reference', `REPAIR-${repairId}`)
+                        .maybeSingle();
+
+                    if (!existingSale) {
+                        const { data: saleData, error: saleError } = await supabase.from('sales').insert({
+                            total_amount: repair.cost,
+                            payment_method: 'cash',
+                            payment_reference: `REPAIR-${repairId}`,
+                            customer_id: repair.customer_id
+                        }).select().single();
+
+                        if (!saleError && saleData && repair.commission_percentage > 0) {
+                            // Insert commission
+                            await supabase.from('commissions').insert({
+                                sale_id: saleData.id,
+                                amount: (repair.cost * repair.commission_percentage) / 100,
+                            });
+                        }
+                    }
+                }
+            }
+
             toast.success(`Status updated to ${newStatus}`);
         } catch (error) {
             console.error("Error updating status:", error);
@@ -149,20 +185,20 @@ export default function Repairs() {
 
                             <div>
                                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                    <Smartphone className="w-5 h-5 text-primary" /> {job.deviceModel}
+                                    <Smartphone className="w-5 h-5 text-primary" /> {job.device_name}
                                 </h3>
                                 <p className="text-white/40 text-xs font-mono mt-1">IMEI: {job.imei || 'N/A'}</p>
                             </div>
 
                             <p className="text-sm text-white/70 line-clamp-2 min-h-[40px]">
-                                {job.issueDescription}
+                                {job.issue_description}
                             </p>
 
                             <div className="grid grid-cols-2 gap-4 text-xs pt-4 border-t border-white/5">
                                 <div className="space-y-1 text-white/50">
                                     <span className="flex items-center gap-1"><User className="w-3 h-3" /> Customer</span>
                                     <span className="text-white font-medium block truncate">
-                                        {customers.find(c => c.id === job.customerId)?.name || 'Unknown'}
+                                        {customers.find(c => c.id === job.customer_id)?.name || 'Unknown'}
                                     </span>
                                 </div>
                                 <div className="space-y-1 text-white/50 text-right">
@@ -171,16 +207,16 @@ export default function Repairs() {
                                 </div>
                             </div>
 
-                            {job.repairType && (
+                            {job.repair_type && (
                                 <div className="text-[10px] bg-white/5 p-3 rounded-lg space-y-2">
                                     <div className="flex justify-between items-center text-white/40">
-                                        <span>Category: {job.serviceCategory || 'N/A'}</span>
-                                        <span>Type: {job.repairType}</span>
+                                        <span>Category: {job.service_category || 'N/A'}</span>
+                                        <span>Type: {job.repair_type}</span>
                                     </div>
                                     <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                                        <span className="text-white/30 italic">Tech Cut ({job.commissionPercentage}%):</span>
+                                        <span className="text-white/30 italic">Tech Cut ({job.commission_percentage}%):</span>
                                         <span className="text-primary font-bold font-mono text-xs">
-                                            Ksh {((Number(job.estimatedCost) * (Number(job.commissionPercentage) || 0)) / 100).toLocaleString()}
+                                            Ksh {((Number(job.cost) * (Number(job.commission_percentage) || 0)) / 100).toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
@@ -202,7 +238,7 @@ export default function Repairs() {
                                     {statuses.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                                 <div className="font-mono text-white text-sm whitespace-nowrap">
-                                    Ksh {job.estimatedCost.toLocaleString()}
+                                    Ksh {Number(job.cost).toLocaleString()}
                                 </div>
                             </div>
                         </div>

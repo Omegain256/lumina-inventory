@@ -30,7 +30,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const RoleRoute = ({ children, requiredRole }) => {
-  const { userRole, isAdmin, isManager, loading } = useAuth();
+  const { isAdmin, isManager, loading } = useAuth();
   if (loading) return null;
 
   if (requiredRole === 'admin' && !isAdmin) return <Navigate to="/" />;
@@ -49,6 +49,13 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
+const IndexRoute = () => {
+  const { isAdmin, isManager, loading } = useAuth();
+  if (loading) return null;
+  if (!isAdmin && !isManager) return <Navigate to="/pos" />;
+  return <Dashboard />;
+};
+
 function AppRoutes() {
   return (
     <Routes>
@@ -58,41 +65,41 @@ function AppRoutes() {
           <DashboardLayout />
         </ProtectedRoute>
       }>
-        <Route index element={<Dashboard />} />
+        <Route index element={<IndexRoute />} />
 
         {/* Products & POS */}
         <Route path="pos" element={<NewSale />} />
-        <Route path="products/add" element={<AddProduct />} />
-        <Route path="products/categories" element={<Categories />} />
-        <Route path="products/units" element={<Units />} />
-        <Route path="products/brands" element={<Brands />} />
+        <Route path="products/add" element={<RoleRoute requiredRole="manager"><AddProduct /></RoleRoute>} />
+        <Route path="products/categories" element={<RoleRoute requiredRole="manager"><Categories /></RoleRoute>} />
+        <Route path="products/units" element={<RoleRoute requiredRole="manager"><Units /></RoleRoute>} />
+        <Route path="products/brands" element={<RoleRoute requiredRole="manager"><Brands /></RoleRoute>} />
 
         {/* Inventory */}
         <Route path="products" element={<ProductList />} />
-        <Route path="shops" element={<Shops />} />
-        <Route path="warehouses" element={<Warehouses />} />
-        <Route path="purchases" element={<PurchasesReturns />} />
-        <Route path="transfers" element={<Transfers />} />
+        <Route path="shops" element={<RoleRoute requiredRole="manager"><Shops /></RoleRoute>} />
+        <Route path="warehouses" element={<RoleRoute requiredRole="manager"><Warehouses /></RoleRoute>} />
+        <Route path="purchases" element={<RoleRoute requiredRole="manager"><PurchasesReturns /></RoleRoute>} />
+        <Route path="transfers" element={<RoleRoute requiredRole="manager"><Transfers /></RoleRoute>} />
 
         {/* Reports unified dashboard */}
         <Route path="reports/pnl" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/sales" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/cashflow" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
-        <Route path="reports/workshift" element={<RoleRoute requiredRole="manager"><Workshift /></RoleRoute>} />
+        <Route path="reports/workshift" element={<Workshift />} />
         <Route path="reports/expenses" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/employees" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
-        <Route path="reports/commission" element={<RoleRoute requiredRole="manager"><CommissionReport /></RoleRoute>} />
+        <Route path="reports/commission" element={<CommissionReport />} />
         <Route path="reports/stock-movement" element={<RoleRoute requiredRole="manager"><StockMovementSummary /></RoleRoute>} />
 
         {/* Stakeholders */}
-        <Route path="stakeholders/customers" element={<RoleRoute requiredRole="admin"><Customers /></RoleRoute>} />
+        <Route path="stakeholders/customers" element={<Customers />} />
         <Route path="stakeholders/suppliers" element={<RoleRoute requiredRole="admin"><Suppliers /></RoleRoute>} />
 
         {/* Services */}
         <Route path="repairs" element={<Repairs />} />
 
         {/* Settings (Unified) */}
-        <Route path="settings/*" element={<Settings />} />
+        <Route path="settings/*" element={<RoleRoute requiredRole="manager"><Settings /></RoleRoute>} />
       </Route>
     </Routes>
   );

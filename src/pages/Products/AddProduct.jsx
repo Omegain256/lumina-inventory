@@ -39,7 +39,7 @@ export default function AddProduct() {
         const { data: cData } = await supabase.from('categories').select('*').order('name');
         const { data: bData } = await supabase.from('brands').select('*').order('name');
         const { data: uData } = await supabase.from('units').select('*').order('name');
-        const { data: sData } = await supabase.from('customers').select('*').order('name'); // Using customers as suppliers for now if no separate table
+        const { data: sData } = await supabase.from('suppliers').select('*').order('name');
 
         if (cData) setCategories(cData);
         if (bData) setBrands(bData);
@@ -66,9 +66,10 @@ export default function AddProduct() {
             const { error } = await supabase.from('products').insert({
                 name: formData.name,
                 sku: finalBarcode,
-                category_id: formData.categoryId,
-                brand_id: formData.brandId,
-                unit_id: formData.unitId,
+                category_id: formData.categoryId || null,
+                brand_id: formData.brandId || null,
+                unit_id: formData.unitId || null,
+                supplier_id: formData.supplierId || null,
                 price: Number(formData.sellingPrice),
                 cost: Number(formData.purchasePrice),
                 stock_quantity: Number(formData.stock),

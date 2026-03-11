@@ -13,7 +13,7 @@ export default function Settings() {
     const currentTabId = location.pathname.split('/').pop() || 'account';
 
     const [isSaving, setIsSaving] = useState(false);
-    const { isAdmin } = useAuth();
+    const { isAdmin, isManager } = useAuth();
     const [users, setUsers] = useState([]);
     const [shopSettings, setShopSettings] = useState({
         shop_name: 'AKISA LIMITED',
@@ -32,12 +32,12 @@ export default function Settings() {
     const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'staff' });
 
     const fetchSettings = async () => {
-        const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').single();
+        const { data } = await supabase.from('settings').select('*').eq('id', 'global').single();
         if (data) setShopSettings(data);
     };
 
     const fetchUsers = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('profiles')
             .select('*')
             .order('created_at', { ascending: false });
@@ -63,6 +63,7 @@ export default function Settings() {
             toast.success(`Role updated to ${newRole}`);
             fetchUsers();
         } catch (error) {
+            console.error(error);
             toast.error("Failed to update role");
         }
     };
@@ -75,6 +76,7 @@ export default function Settings() {
             toast.success("User profile removed");
             fetchUsers();
         } catch (error) {
+            console.error(error);
             toast.error("Failed to remove user");
         }
     };
@@ -131,11 +133,13 @@ export default function Settings() {
     const tabs = [
         { id: 'account', label: 'Account Settings', icon: User },
         { id: 'password', label: 'Change Password', icon: Key },
-        { id: 'preferences', label: 'Preferences Settings', icon: SlidersHorizontal },
-        { id: 'shop', label: 'Shop settings', icon: Settings2 },
-        { id: 'receipt', label: 'Receipt Setting', icon: Receipt },
-        { id: 'payment', label: 'Payment Settings', icon: CreditCard },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
+        ...(isAdmin || isManager ? [
+            { id: 'preferences', label: 'Preferences Settings', icon: SlidersHorizontal },
+            { id: 'shop', label: 'Shop settings', icon: Settings2 },
+            { id: 'receipt', label: 'Receipt Setting', icon: Receipt },
+            { id: 'payment', label: 'Payment Settings', icon: CreditCard },
+            { id: 'notifications', label: 'Notifications', icon: Bell }
+        ] : []),
         ...(isAdmin ? [{ id: 'users', label: 'User Management', icon: Users }] : []),
     ];
 
@@ -502,9 +506,11 @@ export default function Settings() {
                                                                 onChange={(e) => handleRoleChange(user.id, e.target.value)}
                                                                 className="bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-primary appearance-none min-w-[120px]"
                                                             >
+                                                                <option value="super_admin">Super Admin</option>
                                                                 <option value="admin">Admin</option>
                                                                 <option value="manager">Manager</option>
                                                                 <option value="staff">Staff</option>
+                                                                <option value="repair_technician">Repair Technician</option>
                                                             </select>
                                                         </div>
                                                         <button
@@ -590,8 +596,10 @@ export default function Settings() {
                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors appearance-none"
                                 >
                                     <option value="staff">Staff (Sales/Repairs)</option>
+                                    <option value="repair_technician">Repair Technician</option>
                                     <option value="manager">Manager (Inventory/Reports)</option>
                                     <option value="admin">Admin (Full Control)</option>
+                                    <option value="super_admin">Super Admin</option>
                                 </select>
                             </div>
 

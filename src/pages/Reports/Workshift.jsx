@@ -8,12 +8,11 @@ export default function Workshift() {
     const { currentUser, userRole } = useAuth();
     const [shifts, setShifts] = useState([]);
     const [activeShift, setActiveShift] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [staffFilter, setStaffFilter] = useState('all');
     const [workers, setWorkers] = useState([]);
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('workshifts')
             .select('*')
             .order('start_time', { ascending: false });
@@ -29,7 +28,6 @@ export default function Workshift() {
             const { data: profiles } = await supabase.from('profiles').select('id, name, email');
             if (profiles) setWorkers(profiles);
         }
-        setLoading(false);
     };
 
     useEffect(() => {
@@ -37,6 +35,7 @@ export default function Workshift() {
         fetchData();
         const channel = supabase.channel('workshifts').on('postgres_changes', { event: '*', schema: 'public', table: 'workshifts' }, fetchData).subscribe();
         return () => supabase.removeChannel(channel);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentUser]);
 
     const startShift = async () => {
@@ -57,7 +56,8 @@ export default function Workshift() {
             if (error) throw error;
             toast.success("Shift started!");
             fetchData();
-        } catch (error) {
+        } catch (err) {
+            console.error(err);
             toast.error("Failed to start shift");
         }
     };

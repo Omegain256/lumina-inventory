@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { Plus, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
 import CreateTransferModal from '../components/transfers/CreateTransferModal';
 
@@ -9,7 +8,7 @@ export default function Transfers() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('transfers')
             .select('*, product:products(name)')
             .order('created_at', { ascending: false });

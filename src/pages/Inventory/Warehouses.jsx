@@ -14,7 +14,7 @@ export default function Warehouses() {
     });
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('warehouses')
             .select('*')
             .order('created_at', { ascending: false });

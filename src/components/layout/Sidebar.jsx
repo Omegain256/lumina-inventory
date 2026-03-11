@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../utils/cn';
-import { useState } from 'react';
+
 
 const NavGroup = ({ title, children }) => (
     <div className="mb-6">
@@ -18,6 +18,7 @@ const NavGroup = ({ title, children }) => (
     </div>
 );
 
+// eslint-disable-next-line no-unused-vars
 const NavItem = ({ to, icon: Icon, label, end = false, onClick }) => (
     <NavLink
         to={to}
@@ -78,61 +79,78 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     </div>
 
                     <nav className="flex-1 overflow-y-auto custom-scrollbar flex flex-col z-10 pb-6 pr-2 -mr-2">
-                        <NavGroup title="Main">
-                            <NavItem to="/" icon={LayoutDashboard} label="Dashboard" end onClick={() => setIsOpen(false)} />
-                        </NavGroup>
+                        {/* Only show Dashboard to non-staff */}
+                        {(isAdmin || isManager) && (
+                            <NavGroup title="Main">
+                                <NavItem to="/" icon={LayoutDashboard} label="Dashboard" end onClick={() => setIsOpen(false)} />
+                            </NavGroup>
+                        )}
 
                         <NavGroup title="Products">
                             <NavItem to="/pos" icon={Tag} label="New Sale - POS" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/products/add" icon={ListPlus} label="Add Product" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/products/categories" icon={Grid2X2} label="Category" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/products/units" icon={Ruler} label="Units" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/products/brands" icon={ShoppingCart} label="Brands" onClick={() => setIsOpen(false)} />
+                            {(isAdmin || isManager) && (
+                                <>
+                                    <NavItem to="/products/add" icon={ListPlus} label="Add Product" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/products/categories" icon={Grid2X2} label="Category" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/products/units" icon={Ruler} label="Units" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/products/brands" icon={ShoppingCart} label="Brands" onClick={() => setIsOpen(false)} />
+                                </>
+                            )}
                         </NavGroup>
 
                         <NavGroup title="Inventory">
                             <NavItem to="/products" icon={Boxes} label="Product List" end onClick={() => setIsOpen(false)} />
-                            <NavItem to="/shops" icon={Store} label="Shops" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/warehouses" icon={Warehouse} label="Warehouse" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/purchases" icon={ClipboardList} label="Purchases & Returns" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/transfers" icon={ArrowLeftRight} label="Transfers" onClick={() => setIsOpen(false)} />
+                            {(isAdmin || isManager) && (
+                                <>
+                                    <NavItem to="/shops" icon={Store} label="Shops" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/warehouses" icon={Warehouse} label="Warehouse" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/purchases" icon={ClipboardList} label="Purchases & Returns" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/transfers" icon={ArrowLeftRight} label="Transfers" onClick={() => setIsOpen(false)} />
+                                </>
+                            )}
                         </NavGroup>
 
-                        {(isAdmin || isManager) && (
-                            <NavGroup title="Reports">
-                                <NavItem to="/reports/pnl" icon={BarChart3} label="Profits and Loss" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/sales" icon={CircleDollarSign} label="Sales" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/cashflow" icon={TrendingUp} label="Cashflow" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/workshift" icon={Clock} label="Workshift" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/expenses" icon={PieChart} label="Expenses" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/employees" icon={Users} label="Employees" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/commission" icon={HandCoins} label="Commission" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/reports/stock-movement" icon={TrendingUp} label="Stock Movement" onClick={() => setIsOpen(false)} />
-                            </NavGroup>
-                        )}
-
-                        {isAdmin && (
-                            <NavGroup title="Stakeholders">
-                                <NavItem to="/stakeholders/customers" icon={UserPlus} label="Customers" onClick={() => setIsOpen(false)} />
-                                <NavItem to="/stakeholders/suppliers" icon={Users} label="Suppliers" onClick={() => setIsOpen(false)} />
-                            </NavGroup>
-                        )}
-
-                        <NavGroup title="Services">
-                            <NavItem to="/repairs" icon={Wrench} label="Repairs" onClick={() => setIsOpen(false)} />
+                        <NavGroup title="Reports">
+                            {/* Restrict Financial Reports to Admins and Managers */}
+                            {(isAdmin || isManager) && (
+                                <>
+                                    <NavItem to="/reports/pnl" icon={BarChart3} label="Profits and Loss" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/reports/sales" icon={CircleDollarSign} label="Sales" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/reports/cashflow" icon={TrendingUp} label="Cashflow" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/reports/expenses" icon={PieChart} label="Expenses" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/reports/employees" icon={Users} label="Employees" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/reports/stock-movement" icon={TrendingUp} label="Stock Movement" onClick={() => setIsOpen(false)} />
+                                </>
+                            )}
+                            <NavItem to="/reports/workshift" icon={Clock} label="Workshift" onClick={() => setIsOpen(false)} />
                             <NavItem to="/reports/commission" icon={HandCoins} label="Commission" onClick={() => setIsOpen(false)} />
                         </NavGroup>
 
-                        <NavGroup title="Settings">
-                            <NavItem to="/settings/account" icon={User} label="Account Settings" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/password" icon={Key} label="Change Password" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/preferences" icon={SlidersHorizontal} label="Preferences Settings" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/shop" icon={Settings2} label="Shop settings" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/receipt" icon={Receipt} label="Receipt Setting" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/payment" icon={CreditCard} label="Payment Settings" onClick={() => setIsOpen(false)} />
-                            <NavItem to="/settings/notifications" icon={Bell} label="Notifications" onClick={() => setIsOpen(false)} />
-                            {isAdmin && <NavItem to="/settings/users" icon={Users} label="User Management" onClick={() => setIsOpen(false)} />}
+                        <NavGroup title="Stakeholders">
+                            <NavItem to="/stakeholders/customers" icon={UserPlus} label="Customers" onClick={() => setIsOpen(false)} />
+                            {(isAdmin || isManager) && (
+                                <NavItem to="/stakeholders/suppliers" icon={Users} label="Suppliers" onClick={() => setIsOpen(false)} />
+                            )}
                         </NavGroup>
+
+                        <NavGroup title="Services">
+                            <NavItem to="/repairs" icon={Wrench} label="Repairs" onClick={() => setIsOpen(false)} />
+                        </NavGroup>
+
+                        {(isAdmin || isManager) && (
+                            <NavGroup title="Settings">
+                                <NavItem to="/settings/account" icon={User} label="Account Settings" onClick={() => setIsOpen(false)} />
+                                <NavItem to="/settings/password" icon={Key} label="Change Password" onClick={() => setIsOpen(false)} />
+                                <>
+                                    <NavItem to="/settings/preferences" icon={SlidersHorizontal} label="Preferences Settings" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/settings/shop" icon={Settings2} label="Shop settings" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/settings/receipt" icon={Receipt} label="Receipt Setting" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/settings/payment" icon={CreditCard} label="Payment Settings" onClick={() => setIsOpen(false)} />
+                                    <NavItem to="/settings/notifications" icon={Bell} label="Notifications" onClick={() => setIsOpen(false)} />
+                                </>
+                                {isAdmin && <NavItem to="/settings/users" icon={Users} label="User Management" onClick={() => setIsOpen(false)} />}
+                            </NavGroup>
+                        )}
                     </nav>
 
                     <div className="mt-auto pt-4 border-t border-glass-border z-10">

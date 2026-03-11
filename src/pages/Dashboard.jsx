@@ -3,7 +3,8 @@ import { cn } from '../utils/cn';
 import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
 
-const MetricCard = ({ title, value, change, icon: Icon, isPositive, trend }) => (
+// eslint-disable-next-line no-unused-vars
+const MetricCard = ({ title, value, icon: Icon, isPositive, trend }) => (
     <div className="glass-panel p-6 relative overflow-hidden group">
         <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors duration-500"></div>
         <div className="flex justify-between items-start mb-4">
@@ -75,6 +76,7 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchStats();
 
         // Real-time subscription for all changes

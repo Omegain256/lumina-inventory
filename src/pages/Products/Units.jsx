@@ -9,7 +9,7 @@ export default function Units() {
     const [loading, setLoading] = useState(false);
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('units')
             .select('*')
             .order('created_at', { ascending: false });

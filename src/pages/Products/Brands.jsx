@@ -8,7 +8,7 @@ export default function Brands() {
     const [loading, setLoading] = useState(false);
 
     const fetchData = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('brands')
             .select('*')
             .order('created_at', { ascending: false });
