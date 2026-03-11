@@ -142,16 +142,21 @@ export default function ProductList() {
     }, []);
 
     const handleDelete = async (productId) => {
-        if (!window.confirm("Are you sure you want to delete this product?")) return;
+        if (!window.confirm("Are you sure you want to delete this product? All related sales history and inventory logs for this item will also be removed. Proceed?")) return;
 
         try {
             const { error } = await supabase.from('products').delete().eq('id', productId);
-            if (error) throw error;
+            if (error) {
+                if (error.code === '23503') {
+                    throw new Error("Cannot delete product: It is still referenced by other records (e.g. transfers). All sales history should have been cleared automatically.");
+                }
+                throw error;
+            }
             toast.success("Product deleted successfully");
             fetchData();
         } catch (error) {
             console.error("Error deleting product:", error);
-            toast.error("Failed to delete product");
+            toast.error(error.message || "Failed to delete product");
         }
     };
 
