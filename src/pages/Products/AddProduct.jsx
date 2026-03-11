@@ -59,9 +59,10 @@ export default function AddProduct() {
         e.preventDefault();
         setLoading(true);
         try {
-            const finalBarcode = (autoBarcode && !formData.barcode)
+            let finalBarcode = (autoBarcode && !formData.barcode)
                 ? 'LUM-' + Math.floor(Math.random() * 10000000)
-                : formData.barcode;
+                : formData.barcode.trim();
+            finalBarcode = finalBarcode || null;
 
             const { error } = await supabase.from('products').insert({
                 name: formData.name,
