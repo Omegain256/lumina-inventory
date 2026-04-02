@@ -14,6 +14,7 @@ export default function NewSale() {
     const [selectedCustomer, setSelectedCustomer] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
     const [paymentReference, setPaymentReference] = useState('');
+    const [discount, setDiscount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [showReceipt, setShowReceipt] = useState(null);
     const [repairs, setRepairs] = useState([]);
@@ -173,9 +174,8 @@ export default function NewSale() {
         }));
     };
 
-    const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-    const totalDiscount = cart.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
-    const total = subtotal - totalDiscount;
+    const subtotal = cart.reduce((sum, item) => sum + ((item.type === 'product' ? item.product.price : item.repair.cost) * item.quantity), 0);
+    const total = Math.max(0, subtotal - discount);
 
     const handleCheckout = async () => {
         if (cart.length === 0) return toast.error("Cart is empty");
@@ -247,6 +247,7 @@ export default function NewSale() {
             setSelectedCustomer('');
             setSearchQuery('');
             setPaymentReference('');
+            setDiscount(0);
         } catch (error) {
             console.error("Checkout error:", error);
             toast.error(error.message || "Failed to process transaction.");
@@ -327,6 +328,17 @@ export default function NewSale() {
                             <div className="flex justify-between text-white/50">
                                 <span>Subtotal</span>
                                 <span>Ksh {subtotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-white/50">
+                                <span>Discount</span>
+                                <input 
+                                    type="number"
+                                    min="0"
+                                    value={discount || ''}
+                                    placeholder="0"
+                                    onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                                    className="w-24 bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1 text-right text-red-400 focus:outline-none focus:border-red-500/50 text-xs font-mono"
+                                />
                             </div>
                             <div className="flex justify-between text-xl font-bold text-white pt-2 border-t border-white/10">
                                 <span>Total</span>

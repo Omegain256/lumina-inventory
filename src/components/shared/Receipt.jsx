@@ -99,6 +99,17 @@ export default function Receipt({ data, onClose }) {
             </div>
         ` : '';
 
+        const calculatedSubtotal = data.items && data.items.length > 0 
+            ? data.items.reduce((s, i) => s + (i.price * i.quantity), 0)
+            : Number(data.cost) || Number(data.estimatedCost) || 0;
+            
+        const discountAmount = Math.max(0, calculatedSubtotal - Number(data.total_amount || data.total || data.cost || data.estimatedCost || 0));
+
+        const discountHTML = discountAmount > 0 ? `
+            <div class="row"><span class="left">Subtotal:</span><span class="right">KSH ${calculatedSubtotal.toLocaleString()}</span></div>
+            <div class="row"><span class="left">Discount:</span><span class="right">-KSH ${discountAmount.toLocaleString()}</span></div>
+        ` : '';
+
         return `
             <div class="receipt">
                 <div class="center store-name">${settings.shop_name}</div>
@@ -119,6 +130,7 @@ export default function Receipt({ data, onClose }) {
                 ${itemsHTML}
                 <div class="divider">${DIVIDER}</div>
 
+                ${discountHTML}
                 <div class="grand-total-label">GRAND TOTAL</div>
                 <div class="grand-total-value">KSH ${totalAmount}</div>
                 <div class="spacer"></div>

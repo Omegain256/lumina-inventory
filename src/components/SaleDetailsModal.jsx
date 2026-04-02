@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
 import { X, Edit2, Save, Trash2, Printer, AlertCircle } from 'lucide-react';
 import { cn } from '../utils/cn';
+import Receipt from './shared/Receipt';
 
 export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) {
     const [loading, setLoading] = useState(true);
@@ -13,6 +14,8 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
     const [editItems, setEditItems] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('');
     const [error, setError] = useState('');
+    const [discountAmount, setDiscountAmount] = useState(0);
+    const [showReceipt, setShowReceipt] = useState(false);
 
     useEffect(() => {
         if (!isOpen || !saleId) return;
@@ -50,6 +53,11 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
                 
                 // Initialize edit state
                 setPaymentMethod(data.payment_method || 'Cash');
+                
+                const initialSubtotal = data.sale_items.filter(item => item.product).reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+                const initialDiscount = Math.max(0, initialSubtotal - Number(data.total_amount));
+                setDiscountAmount(initialDiscount);
+
                 setEditItems(data.sale_items.filter(item => item.product).map(item => ({
                     ...item,
                     newQuantity: item.quantity
@@ -73,7 +81,8 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
     };
 
     // Calculate totals based on edit state
-    const editTotal = editItems.reduce((sum, item) => sum + (item.newQuantity * item.unit_price), 0);
+    const editSubtotal = editItems.reduce((sum, item) => sum + (item.newQuantity * item.unit_price), 0);
+    const editTotal = Math.max(0, editSubtotal - discountAmount);
 
     const handleQuantityChange = (itemId, newQty) => {
         const qty = parseInt(newQty);
@@ -231,7 +240,7 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
                     <div className="flex gap-2">
                         {sale && !isEditing && (
                             <>
-                                <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 transition-colors" onClick={() => window.print()} title="Print">
+                                <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 transition-colors" onClick={() => setShowReceipt(true)} title="Print">
                                     <Printer className="w-5 h-5" />
                                 </button>
                                 <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/70 transition-colors" onClick={() => setIsEditing(true)} title="Edit Sale">
@@ -325,13 +334,22 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
                                     <select 
                                         value={paymentMethod}
                                         onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors outline-none"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors outline-none mb-4"
                                     >
                                         <option value="Cash">Cash</option>
                                         <option value="M-Pesa">M-Pesa</option>
                                         <option value="Card">Bank / Card</option>
                                     </select>
                                     
+                                    <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-2">Discount (Ksh)</h3>
+                                    <input 
+                                        type="number"
+                                        min="0"
+                                        value={discountAmount || ''}
+                                        onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors outline-none"
+                                        placeholder="0"
+                                    />
                                 </div>
                             )}
 
@@ -344,9 +362,16 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
                     <div className="p-6 bg-black/60 border-t border-white/10 backdrop-blur-md">
                         <div className="flex justify-between items-center mb-6">
                             <span className="text-white/60">Total Amount</span>
-                            <span className="text-2xl font-bold font-mono text-primary">
-                                Ksh {(isEditing ? editTotal : sale.total_amount).toLocaleString()}
-                            </span>
+                            <div className="text-right">
+                                {discountAmount > 0 && (
+                                    <div className="text-sm text-red-400 font-mono mb-1">
+                                        Discount: -Ksh {discountAmount.toLocaleString()}
+                                    </div>
+                                )}
+                                <span className="text-2xl font-bold font-mono text-primary">
+                                    Ksh {(isEditing ? editTotal : sale.total_amount).toLocaleString()}
+                                </span>
+                            </div>
                         </div>
                         
                         {isEditing && (
@@ -376,6 +401,24 @@ export default function SaleDetailsModal({ isOpen, onClose, saleId, onUpdate }) 
                     </div>
                 )}
             </div>
+
+            {showReceipt && sale && (
+                <Receipt 
+                    data={{
+                        id: sale.id,
+                        total_amount: sale.total_amount,
+                        payment_method: sale.payment_method,
+                        payment_reference: sale.payment_reference,
+                        created_at: sale.created_at,
+                        items: sale.sale_items.map(i => ({
+                            name: i.product.name,
+                            price: i.unit_price,
+                            quantity: i.quantity
+                        }))
+                    }}
+                    onClose={() => setShowReceipt(false)}
+                />
+            )}
         </div>
     );
 }
