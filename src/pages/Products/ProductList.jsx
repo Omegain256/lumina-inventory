@@ -169,13 +169,15 @@ export default function ProductList() {
                     </h1>
                     <p className="text-white/50 mt-1">Manage your complete catalog of items and parts.</p>
                 </div>
-                <Link
-                    to="/products/add"
-                    className="bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(11,211,211,0.2)]"
-                >
-                    <Plus className="w-5 h-5" />
-                    Add Product
-                </Link>
+                {(isAdmin || isManager) && (
+                    <Link
+                        to="/products/add"
+                        className="bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(11,211,211,0.2)]"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Add Product
+                    </Link>
+                )}
             </header>
 
             <div className="glass-panel overflow-hidden">

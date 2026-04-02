@@ -22,6 +22,8 @@ import Warehouses from './pages/Inventory/Warehouses';
 import Settings from './pages/Settings/Settings';
 import StockMovementSummary from './pages/Reports/StockMovementSummary';
 
+import Expenses from './pages/Reports/Expenses';
+
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
   if (loading) return <div className="h-screen flex items-center justify-center bg-black text-white">Loading...</div>;
@@ -86,8 +88,9 @@ function AppRoutes() {
         <Route path="reports/sales" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/cashflow" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
         <Route path="reports/workshift" element={<Workshift />} />
-        <Route path="reports/expenses" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
+        <Route path="reports/expenses" element={<RoleRoute requiredRole="manager"><Expenses /></RoleRoute>} />
         <Route path="reports/employees" element={<RoleRoute requiredRole="manager"><ReportsDashboard /></RoleRoute>} />
+
         <Route path="reports/commission" element={<CommissionReport />} />
         <Route path="reports/stock-movement" element={<RoleRoute requiredRole="manager"><StockMovementSummary /></RoleRoute>} />
 

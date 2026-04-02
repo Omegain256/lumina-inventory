@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { ShoppingCart, Search, Plus, Minus, Trash2, User, CreditCard, Banknote, Smartphone, Printer, Clock } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, User, CreditCard, Banknote, Smartphone, Printer, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Receipt from '../../components/shared/Receipt';
 
 export default function NewSale() {
-    const { currentUser } = useAuth();
+    const { currentUser, isAdmin, isManager } = useAuth();
     const [cart, setCart] = useState([]);
     const [products, setProducts] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -17,27 +17,85 @@ export default function NewSale() {
     const [loading, setLoading] = useState(false);
     const [showReceipt, setShowReceipt] = useState(null);
     const [repairs, setRepairs] = useState([]);
-    const [activeTab, setActiveTab] = useState('products'); // 'products' or 'repairs'
+    const [activeTab, setActiveTab] = useState('products'); // 'products', 'repairs' or 'recent'
+    const [recentSales, setRecentSales] = useState([]);
+    const [voidingId, setVoidingId] = useState(null);
 
     const fetchData = async () => {
         const { data: pData } = await supabase.from('products').select('*').order('name');
         const { data: cData } = await supabase.from('customers').select('*').order('name');
         const { data: rData } = await supabase.from('repairs').select('*, customer:customers(name)').eq('status', 'Completed').order('created_at');
-
         if (pData) setProducts(pData);
         if (cData) setCustomers(cData);
         if (rData) setRepairs(rData);
     };
 
+    const fetchRecentSales = async () => {
+        // Fetch sales from the last 24 hours to avoid strict midnight/timezone issues
+        const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const { data } = await supabase
+            .from('sales')
+            .select('*, sale_items(*, product:products(name, id, stock_quantity))')
+            .gte('created_at', last24h.toISOString())
+            .order('created_at', { ascending: false });
+
+        if (data) setRecentSales(data);
+    };
+
     useEffect(() => {
         fetchData();
+        fetchRecentSales();
         const productChannel = supabase.channel('products-pos').on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchData).subscribe();
         const repairChannel = supabase.channel('repairs-pos').on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, fetchData).subscribe();
+        const salesChannel = supabase.channel('sales-pos').on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, fetchRecentSales).subscribe();
         return () => {
             supabase.removeChannel(productChannel);
             supabase.removeChannel(repairChannel);
+            supabase.removeChannel(salesChannel);
         };
     }, []);
+
+    const handleDeleteSale = async (sale) => {
+        if (!window.confirm(`Permanently delete sale #${sale.id.substring(0, 8).toUpperCase()}? This will restore stock to products and reset linked repairs.`)) return;
+        setVoidingId(sale.id);
+        try {
+            // 1. Restore stock for all product items
+            if (sale.sale_items && sale.sale_items.length > 0) {
+                for (const item of sale.sale_items) {
+                    if (item.product_id && item.product) {
+                        await supabase.from('products').update({
+                            stock_quantity: (item.product.stock_quantity || 0) + item.quantity
+                        }).eq('id', item.product_id);
+                    }
+                }
+            }
+
+            // 2. Reverse repair delivery if this sale was from a repair
+            if (sale.payment_reference?.startsWith('REPAIR-')) {
+                const repairId = sale.payment_reference.replace('REPAIR-', '');
+                await supabase.from('repairs').update({ status: 'Completed' }).eq('id', repairId);
+            }
+
+            // 3. Delete related commissions
+            await supabase.from('commissions').delete().eq('sale_id', sale.id);
+
+            // 4. Delete sale items (cascade might handle this, but explicit is safer)
+            await supabase.from('sale_items').delete().eq('sale_id', sale.id);
+
+            // 5. Hard-delete the sale record
+            await supabase.from('sales').delete().eq('id', sale.id);
+
+            toast.success('Sale deleted. Stock and repair status restored.');
+            fetchRecentSales();
+            fetchData();
+        } catch (err) {
+            console.error('Delete error:', err);
+            toast.error('Failed to delete sale.');
+        } finally {
+            setVoidingId(null);
+        }
+    };
 
     const filteredProducts = useMemo(() => {
         return products.filter(p =>
@@ -328,7 +386,7 @@ export default function NewSale() {
             {/* RIGHT PANE - PRODUCTS/REPAIRS (2/3 Width) */}
             <div className="w-2/3 flex flex-col gap-4">
                 <div className="glass-panel p-4 flex flex-col gap-4">
-                    <div className="flex gap-2 p-1 bg-[#0a0a0a] border border-white/10 rounded-xl w-fit">
+                    <div className="flex gap-2 p-1 bg-[#0a0a0a] border border-white/10 rounded-xl w-fit flex-wrap">
                         <button
                             onClick={() => { setActiveTab('products'); setSearchQuery(''); }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'products' ? 'bg-primary/20 text-primary border border-primary/30' : 'text-white/40 hover:text-white'}`}
@@ -341,6 +399,17 @@ export default function NewSale() {
                         >
                             Completed Repairs
                         </button>
+                        {(isAdmin || isManager) && (
+                            <button
+                                onClick={() => { setActiveTab('recent'); setSearchQuery(''); }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${activeTab === 'recent' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-white/40 hover:text-white'}`}
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" /> Delete Recent
+                                {recentSales.length > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{recentSales.length}</span>
+                                )}
+                            </button>
+                        )}
                     </div>
                     <div className="relative">
                         <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
@@ -396,7 +465,7 @@ export default function NewSale() {
                                 })}
                             </div>
                         )
-                    ) : (
+                    ) : activeTab === 'repairs' ? (
                         filteredRepairs.length === 0 ? (
                             <div className="h-full flex items-center justify-center text-white/40 text-center">
                                 <div className="space-y-2">
@@ -428,6 +497,51 @@ export default function NewSale() {
                                                     PICKUP
                                                 </div>
                                             </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )
+                    ) : (
+                        // Recent Sales / Void Panel
+                        recentSales.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-white/40 text-center">
+                                <div className="space-y-2">
+                                    <RotateCcw className="w-12 h-12 mx-auto opacity-20" />
+                                    <p>No sales recorded today yet.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                    <p className="text-red-400 text-xs">Deleting a sale will restore stock and reset repairs. This is permanent.</p>
+                                </div>
+                                {recentSales.map(sale => {
+                                    const saleTime = new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                    const customer = customers.find(c => c.id === sale.customer_id);
+                                    return (
+                                        <div key={sale.id} className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4 flex justify-between items-center gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-mono text-xs text-white/40">#{sale.id.substring(0, 8).toUpperCase()}</span>
+                                                    <span className="text-white/30 text-xs">{saleTime}</span>
+                                                    <span className="text-[10px] bg-white/5 text-white/40 px-2 py-0.5 rounded">{sale.payment_method}</span>
+                                                </div>
+                                                <div className="font-bold text-white font-mono">Ksh {Number(sale.total_amount).toLocaleString()}</div>
+                                                <div className="text-white/40 text-xs mt-0.5 truncate">
+                                                    {customer ? customer.name : 'Walk-in'}
+                                                    {sale.sale_items?.length > 0 && ` · ${sale.sale_items.length} item${sale.sale_items.length > 1 ? 's' : ''}`}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteSale(sale)}
+                                                disabled={voidingId === sale.id}
+                                                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium flex-shrink-0 disabled:opacity-50"
+                                            >
+                                                <Trash2 className={`w-3.5 h-3.5 ${voidingId === sale.id ? 'animate-spin' : ''}`} />
+                                                {voidingId === sale.id ? 'Deleting...' : 'Delete'}
+                                            </button>
                                         </div>
                                     );
                                 })}

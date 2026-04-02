@@ -6,8 +6,15 @@ import toast from 'react-hot-toast';
 
 export default function AddProduct() {
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
+    const { isAdmin, isManager } = useAuth();
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isAdmin && !isManager) {
+            toast.error("You don't have permission to add products");
+            navigate('/products');
+        }
+    }, [isAdmin, isManager, navigate]);
 
     // Form state corresponding to the UI
     const [formData, setFormData] = useState({

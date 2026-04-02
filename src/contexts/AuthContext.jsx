@@ -70,8 +70,9 @@ export const AuthProvider = ({ children }) => {
 
     const isAdmin = userRole === 'admin' || userRole === 'super_admin';
     const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'super_admin';
+    const isAttendant = userRole === 'attendant';
 
-    const value = { currentUser, userRole, isAdmin, isManager, loginWithEmail, loginWithGoogle, logout };
+    const value = { currentUser, userRole, isAdmin, isManager, isAttendant, loginWithEmail, loginWithGoogle, logout };
 
     return (
         <AuthContext.Provider value={value}>

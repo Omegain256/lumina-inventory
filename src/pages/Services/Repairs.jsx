@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { Wrench, Plus, User, Smartphone, Calendar, CheckCircle2, CircleDashed, Clock, AlertCircle, Edit, Trash2, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Receipt from '../../components/shared/Receipt';
 
 export default function Repairs() {
+    const { isAdmin, isManager } = useAuth();
     const [repairs, setRepairs] = useState([]);
     const [customers, setCustomers] = useState([]);
+    const [technicians, setTechnicians] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [showReceipt, setShowReceipt] = useState(null); // stores job data for receipt
+    const [showReceipt, setShowReceipt] = useState(null);
 
     const [formData, setFormData] = useState({
         customerId: '',
@@ -25,7 +28,6 @@ export default function Repairs() {
         commissionPercentage: '0'
     });
 
-    const technicians = ['John Doe', 'Jane Smith', 'Mike Johnson'];
     const statuses = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered'];
 
     const fetchRepairs = async () => {
@@ -44,14 +46,43 @@ export default function Repairs() {
         if (data) setCustomers(data);
     };
 
+    const fetchTechnicians = async () => {
+        try {
+            // ULTIMATE ROBUST FETCH: Select all columns to avoid missing-column errors
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'repair_technician');
+
+            if (error) {
+                console.error("Tech fetch error:", error);
+                return;
+            }
+
+            if (data) {
+                const unified = data.map(t => ({
+                    id: t.id,
+                    name: t.name || t.full_name || t.display_name || t.email || 'Unnamed'
+                }));
+                // Sort in JavaScript to avoid SQL ordering errors
+                setTechnicians(unified.sort((a, b) => a.name.localeCompare(b.name)));
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     useEffect(() => {
         fetchRepairs();
         fetchCustomers();
+        fetchTechnicians();
         const rChannel = supabase.channel('repairs').on('postgres_changes', { event: '*', schema: 'public', table: 'repairs' }, fetchRepairs).subscribe();
         const cChannel = supabase.channel('customers').on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, fetchCustomers).subscribe();
+        const pChannel = supabase.channel('profiles-repairs-global').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchTechnicians).subscribe();
         return () => {
             supabase.removeChannel(rChannel);
             supabase.removeChannel(cChannel);
+            supabase.removeChannel(pChannel);
         };
     }, []);
 
@@ -77,8 +108,9 @@ export default function Repairs() {
             setIsModalOpen(false);
             setFormData({ customerId: '', deviceModel: '', imei: '', issueDescription: '', estimatedCost: '', technician: '', status: 'Pending', repairType: '', commissionPercentage: '0', serviceCategory: 'Mobile Repair', mobileType: '' });
         } catch (error) {
-            console.error("Error adding repair:", error);
-            toast.error("Failed to create repair job.");
+            console.error("FULL REPAIR ERROR:", error);
+            const msg = error.details || error.message || "Unknown error";
+            toast.error(`Error: ${msg}`, { duration: 6000 });
         } finally {
             setLoading(false);
         }
@@ -93,8 +125,6 @@ export default function Repairs() {
             if (newStatus === 'Completed' || newStatus === 'Delivered') {
                 const repair = repairs.find(r => r.id === repairId);
                 if (repair && repair.cost > 0) {
-
-                    // Check if already paid to prevent double entry
                     const { data: existingSale } = await supabase
                         .from('sales')
                         .select('id')
@@ -110,7 +140,6 @@ export default function Repairs() {
                         }).select().single();
 
                         if (!saleError && saleData && repair.commission_percentage > 0) {
-                            // Insert commission
                             await supabase.from('commissions').insert({
                                 sale_id: saleData.id,
                                 amount: (repair.cost * repair.commission_percentage) / 100,
@@ -178,9 +207,12 @@ export default function Repairs() {
                         <div key={job.id} className="glass-panel p-5 flex flex-col gap-4 relative group">
                             <div className="flex justify-between items-start">
                                 <StatusBadge status={job.status} />
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                    <button onClick={() => handleDelete(job.id)} className="text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                                </div>
+                                {/* Only admins/managers can delete */}
+                                {(isAdmin || isManager) && (
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                        <button onClick={() => handleDelete(job.id)} className="text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -275,8 +307,16 @@ export default function Repairs() {
                                         <label className="block text-sm font-medium text-white/70 mb-1.5">Assigned Technician</label>
                                         <select value={formData.technician} onChange={e => setFormData({ ...formData, technician: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary appearance-none">
                                             <option value="">Unassigned</option>
-                                            {technicians.map(t => <option key={t} value={t}>{t}</option>)}
+                                            {technicians.length > 0
+                                                ? technicians.map(t => <option key={t.id} value={t.name}>{t.name}</option>)
+                                                : <option disabled value="">No repair technicians added yet</option>
+                                            }
                                         </select>
+                                        {technicians.length === 0 && (
+                                            <p className="text-[11px] text-amber-400/70 mt-1">
+                                                Add staff with role "Repair Technician" in Settings → User Management.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 

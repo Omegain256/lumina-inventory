@@ -97,30 +97,34 @@ export default function Settings() {
                 email: newStaff.email,
                 password: newStaff.password,
                 options: {
-                    data: { name: newStaff.name }
+                    data: {
+                        name: newStaff.name,
+                        role: newStaff.role
+                    }
                 }
             });
 
             if (authError) throw authError;
 
-            // The profile might already be created by the handle_new_user trigger, 
-            // but we want to ensure the role and name are correct
+            // Use UPSERT instead of UPDATE to be 100% sure the profile is created/corrected
             const { error: profileError } = await supabase
                 .from('profiles')
-                .update({
+                .upsert({
+                    id: authData.user.id,
+                    email: newStaff.email,
                     name: newStaff.name,
                     role: newStaff.role
-                })
-                .eq('id', authData.user.id);
+                });
 
             if (profileError) {
                 console.error("Profile update error:", profileError);
                 // Not a fatal error as the trigger might have created it
             }
 
-            toast.success("Staff account created! They will need to confirm their email.");
+            toast.success("Staff account created! If they cannot log in verify Disable Email Confirmations is checked in Supabase Auth Settings.", { duration: 6000 });
             setIsAddModalOpen(false);
             setNewStaff({ name: '', email: '', password: '', role: 'staff' });
+
             fetchUsers();
         } catch (error) {
             console.error(error);
@@ -510,6 +514,7 @@ export default function Settings() {
                                                                 <option value="admin">Admin</option>
                                                                 <option value="manager">Manager</option>
                                                                 <option value="staff">Staff</option>
+                                                                <option value="attendant">Attendant</option>
                                                                 <option value="repair_technician">Repair Technician</option>
                                                             </select>
                                                         </div>
@@ -596,6 +601,7 @@ export default function Settings() {
                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors appearance-none"
                                 >
                                     <option value="staff">Staff (Sales/Repairs)</option>
+                                    <option value="attendant">Attendant (POS & Repairs)</option>
                                     <option value="repair_technician">Repair Technician</option>
                                     <option value="manager">Manager (Inventory/Reports)</option>
                                     <option value="admin">Admin (Full Control)</option>

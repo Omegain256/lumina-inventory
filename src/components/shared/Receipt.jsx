@@ -3,12 +3,12 @@ import { Printer, X } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 
 export default function Receipt({ data, onClose }) {
-    const printRef = useRef();
+    const previewRef = useRef();
     const [settings, setSettings] = useState({
         shop_name: 'AKISA LIMITED',
         shop_address: 'Simara Mall, 1st Floor, Shop No. 1, Behind National Archives',
         shop_phone: '0768 888 661',
-        receipt_header: 'AKISA LIMITED: We Sell Mobile Phone Spares & Accessories.',
+        receipt_header: 'We Sell Mobile Phone Spares & Accessories.',
         receipt_footer: 'Fast. Affordable. Trusted. Goods once sold are not returnable.'
     });
 
@@ -20,152 +20,146 @@ export default function Receipt({ data, onClose }) {
         fetchSettings();
     }, []);
 
-    const printStyles = `
+    const DIVIDER = '-----------------------------------';
+
+    // Shared print styles injected into the popup window
+    const getPrintStyles = () => `
         @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;700&display=swap');
-        
+        @page { size: 80mm auto; margin: 4mm 3mm; }
         * { box-sizing: border-box; }
-        
-        .receipt-wrapper { 
-            font-family: 'Inconsolata', 'Courier New', Courier, monospace; 
-            line-height: 1.3;
-            color: #000 !important;
-            background: #fff !important;
-            width: 80mm;
-            margin: 0 auto;
-            padding: 5mm;
-            text-rendering: optimizeLegibility;
+        body {
+            font-family: 'Inconsolata', 'Courier New', Courier, monospace;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #000;
+            background: #fff;
+            margin: 0; padding: 0;
+            width: 74mm;
         }
-        
-        /* Force black for all children in print */
-        .receipt-wrapper * { 
-            color: #000 !important; 
-            background: transparent !important; 
-            border-color: #000 !important;
+        .receipt { width: 100%; }
+        .center { text-align: center; }
+        .bold { font-weight: 700; }
+        .divider { color: #000; margin: 3px 0; }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
         }
-
-        .receipt-header { 
-            text-align: center; 
-            margin-bottom: 5mm; 
-            border-bottom: 0.5pt dashed #000; 
-            padding-bottom: 3mm; 
-        }
-        
-        .receipt-store-name { 
-            font-size: 20px; 
-            font-weight: 800; 
-            text-transform: uppercase; 
-            margin-bottom: 1mm;
-        }
-        
-        .receipt-details { 
-            margin-bottom: 5mm; 
-            font-size: 13px; 
-            border-bottom: 0.5pt dashed #000; 
-            padding-bottom: 3mm;
-        }
-        
-        .receipt-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 1mm; 
-        }
-        
-        .receipt-items { 
-            border-bottom: 0.5pt dashed #000; 
-            padding-bottom: 3mm; 
-            margin-bottom: 3mm; 
-        }
-        
-        .receipt-item-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 1.5mm; 
-            font-size: 13px; 
-        }
-        
-        .receipt-item-name {
-            font-weight: 700;
-        }
-
-        .receipt-total { 
-            font-size: 18px; 
-            font-weight: 800; 
-            text-align: right; 
-            margin-top: 5mm; 
-            padding-top: 3mm; 
-            text-transform: uppercase; 
-            border-top: 0.5pt dashed #000;
-        }
-        
-        .receipt-total-label {
-            font-size: 11px;
-            font-weight: normal;
-        }
-
-        .receipt-payment-info { 
-            margin-top: 5mm; 
-            border-top: 0.5pt dashed #000; 
-            padding-top: 3mm; 
-            font-size: 12px; 
-        }
-        
-        .receipt-payment-title { 
-            font-weight: 800; 
-            text-transform: uppercase; 
-            text-align: center; 
-            margin-bottom: 2mm; 
-            font-size: 12px;
-        }
-        
-        .receipt-payment-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 1mm; 
-        }
-        
-        .receipt-footer { 
-            text-align: center; 
-            margin-top: 5mm; 
-            font-size: 11px; 
-            border-top: 0.5pt dashed #000; 
-            padding-top: 3mm; 
-        }
+        .row .left { flex: 1; padding-right: 4px; }
+        .row .right { text-align: right; white-space: nowrap; }
+        .grand-total-label { font-weight: 700; font-size: 18px; text-align: center; margin-top: 4px; }
+        .grand-total-value { font-weight: 900; font-size: 22px; text-align: center; }
+        .section-title { font-weight: 700; font-size: 15px; text-align: center; text-transform: uppercase; }
+        .store-name { font-weight: 900; font-size: 18px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .spacer { height: 4px; }
     `;
 
+    // Build the receipt as an HTML string for printing
+    const buildPrintHTML = () => {
+        const d = new Date(data.created_at || data.createdAt || new Date());
+        const sDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        const sRef = (data.id || '').substring(0, 8).toUpperCase();
+        const totalAmount = Number(data.total_amount || data.total || data.cost || data.estimatedCost || 0).toLocaleString();
+
+        // Always show a single Call/WhatsApp line
+
+        const itemsHTML = data.items && data.items.length > 0
+            ? data.items.map(item => `
+                <div class="row">
+                    <span class="left bold">${item.name} x${item.quantity}</span>
+                    <span class="right bold">Ksh ${(item.price * item.quantity).toLocaleString()}</span>
+                </div>
+            `).join('')
+            : (() => {
+                const name = data.device_name || data.deviceModel || 'General Repair';
+                const rtype = data.repair_type || data.repairType || 'Service Fee';
+                const cost = (Number(data.cost) || Number(data.estimatedCost) || 0).toLocaleString();
+                return `
+                    <div class="row">
+                        <span class="left bold">${name}<br><small>${rtype}</small></span>
+                        <span class="right bold">Ksh ${cost}</span>
+                    </div>
+                    ${data.issue_description ? `<div>Issue: ${data.issue_description}</div>` : ''}
+                `;
+            })();
+
+        const paymentHTML = settings.paybill_number ? `
+            <div class="section-title">PAYMENT OPTIONS</div>
+            <div class="row">
+                <span class="left">M-Pesa Paybill:</span>
+                <span class="right bold">${settings.paybill_number}</span>
+            </div>
+            <div class="row">
+                <span class="left">Account:</span>
+                <span class="right bold">${settings.account_number}</span>
+            </div>
+            <div class="row">
+                <span class="left">Account Name:</span>
+                <span class="right">${settings.account_name || ''}.</span>
+            </div>
+        ` : '';
+
+        return `
+            <div class="receipt">
+                <div class="center store-name">${settings.shop_name}</div>
+                <div class="center">${settings.receipt_header}</div>
+                <div class="center">${(settings.shop_address || '').replace(/\n/g, '<br>')}</div>
+                <div class="center bold">Call/WhatsApp: ${settings.shop_phone}</div>
+                ${settings.kra_pin ? `<div class="center bold">PIN: ${settings.kra_pin}</div>` : ''}
+                <div class="divider">${DIVIDER}</div>
+
+                <div class="row"><span class="left">Date:</span><span class="right">${sDate}</span></div>
+                <div class="row"><span class="left">Ref No:</span><span class="right">${sRef}</span></div>
+                ${data.customer_name || data.customerName ? `<div class="row"><span class="left">Customer:</span><span class="right">${data.customer_name || data.customerName}</span></div>` : ''}
+                <div class="row"><span class="left">Payment:</span><span class="right">${data.payment_method || data.paymentMethod || 'Cash'}</span></div>
+                ${data.payment_reference || data.paymentReference ? `<div class="row"><span class="left">Tx Code:</span><span class="right">${data.payment_reference || data.paymentReference}</span></div>` : ''}
+
+                <div class="spacer"></div>
+                <div class="bold" style="font-size:14px;">Items / Services</div>
+                ${itemsHTML}
+                <div class="divider">${DIVIDER}</div>
+
+                <div class="grand-total-label">GRAND TOTAL</div>
+                <div class="grand-total-value">KSH ${totalAmount}</div>
+                <div class="spacer"></div>
+
+                ${paymentHTML}
+                <div class="divider">${DIVIDER}</div>
+                <div class="center">${(settings.receipt_footer || '').replace(/\n/g, '<br>')}</div>
+                <div class="center">Professional Repair &amp; Screen Replacement</div>
+            </div>
+        `;
+    };
+
     const handlePrint = () => {
-        const printContent = printRef.current.innerHTML;
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
                 <head>
                     <title>Print Receipt</title>
-                    <style>
-                        ${printStyles}
-                        body { margin: 0; padding: 0; background: #fff; display: flex; justify-content: center; }
-                        @media print {
-                            body { width: 80mm; margin: 0; padding: 0; }
-                            @page { margin: 0; }
-                        }
-                    </style>
+                    <style>${getPrintStyles()}</style>
                 </head>
                 <body>
-                    ${printContent}
+                    ${buildPrintHTML()}
                     <script>
                         window.onload = () => {
                             window.print();
                             window.onafterprint = () => window.close();
                         };
-                    </script>
+                    <\/script>
                 </body>
             </html>
         `);
         printWindow.document.close();
     };
 
+    // Preview HTML rendered in modal
+    const previewHTML = buildPrintHTML();
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white text-black w-full max-w-[400px] rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center no-print">
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                     <h3 className="font-bold flex items-center gap-2 text-gray-800">
                         <Printer className="w-5 h-5" /> Receipt Preview
                     </h3>
@@ -174,116 +168,26 @@ export default function Receipt({ data, onClose }) {
                     </button>
                 </div>
 
-                <div className="p-8 overflow-y-auto max-h-[70vh] bg-gray-100 flex justify-center">
-                    <style>{printStyles}</style>
-                    <div className="receipt-wrapper shadow-sm border border-gray-200" ref={printRef}>
-                        <div className="receipt-header">
-                            <div className="receipt-store-name">{settings.shop_name}</div>
-                            <div className="text-[11px] font-bold mt-1 uppercase tracking-tight">{settings.receipt_header}</div>
-                            <div className="text-[10px] mt-1" dangerouslySetInnerHTML={{ __html: settings.shop_address.replace(/\n/g, '<br />') }} />
-                            {settings.shop_phone === settings.whatsapp_phone ? (
-                                <div className="text-[11px] font-bold mt-1">Call / WhatsApp: {settings.shop_phone}</div>
-                            ) : (
-                                <>
-                                    <div className="text-[11px] font-bold mt-1">Call: {settings.shop_phone}</div>
-                                    {settings.whatsapp_phone && <div className="text-[11px] font-bold">WhatsApp: {settings.whatsapp_phone}</div>}
-                                </>
-                            )}
-                            {settings.kra_pin && <div className="text-[11px] uppercase font-bold mt-1">PIN: {settings.kra_pin}</div>}
-                        </div>
-
-                        <div className="receipt-details">
-                            <div className="receipt-row">
-                                <span>Date:</span>
-                                <span>{new Date(data.created_at || data.createdAt || new Date()).toLocaleDateString()}</span>
-                            </div>
-                            <div className="receipt-row">
-                                <span>Ref No:</span>
-                                <span className="font-mono">{data.id?.substring(0, 8).toUpperCase()}</span>
-                            </div>
-                            {data.customer_name || data.customerName ? (
-                                <div className="receipt-row">
-                                    <span>Customer:</span>
-                                    <span>{data.customer_name || data.customerName}</span>
-                                </div>
-                            ) : null}
-                            <div className="receipt-row">
-                                <span>Payment:</span>
-                                <span>{data.payment_method || data.paymentMethod || 'Cash'}</span>
-                            </div>
-                            {(data.payment_reference || data.paymentReference) && (
-                                <div className="receipt-row">
-                                    <span>Tx Code:</span>
-                                    <span className="font-mono">{data.payment_reference || data.paymentReference}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="receipt-items">
-                            <div className="font-bold mb-3 uppercase text-[11px] tracking-widest border-b border-black pb-1">Items / Services</div>
-
-                            {/* List items for POS Sales */}
-                            {data.items ? (
-                                data.items.map((item, idx) => (
-                                    <div key={idx} className="mb-2">
-                                        <div className="receipt-item-row">
-                                            <span className="receipt-item-name">{item.name} x{item.quantity}</span>
-                                            <span className="font-bold font-mono text-[13px]">Ksh {(item.price * item.quantity).toLocaleString()}</span>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                /* Single Repair Job */
-                                <div className="mb-2">
-                                    <div className="receipt-item-row">
-                                        <span className="font-bold">{data.device_name || data.deviceModel || 'General Repair'}</span>
-                                        <span className="font-bold">Ksh {(Number(data.cost) || Number(data.estimatedCost) || 0).toLocaleString()}</span>
-                                    </div>
-                                    <div className="text-[10px] text-gray-500 italic ml-2">
-                                        - {data.repair_type || data.repairType || 'Service Fee'}
-                                    </div>
-                                    {data.issue_description && (
-                                        <div className="text-[9px] text-gray-400 ml-2 mt-1">
-                                            Issue: {data.issue_description}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="receipt-total">
-                            <div className="receipt-total-label">GRAND TOTAL</div>
-                            Ksh {Number(data.total_amount || data.total || data.cost || data.estimatedCost || 0).toLocaleString()}
-                        </div>
-
-                        {settings.paybill_number && (
-                            <div className="receipt-payment-info mt-6 border-t border-dashed border-black pt-4">
-                                <div className="receipt-payment-title font-bold text-[11px] uppercase mb-2 text-center">Payment Options</div>
-                                <div className="p-3 border border-black rounded-lg space-y-1">
-                                    <div className="receipt-payment-row flex justify-between text-[11px]">
-                                        <span>M-Pesa Paybill:</span>
-                                        <span className="font-bold font-mono">{settings.paybill_number}</span>
-                                    </div>
-                                    <div className="receipt-payment-row flex justify-between text-[11px]">
-                                        <span>Account:</span>
-                                        <span className="font-bold font-mono">{settings.account_number}</span>
-                                    </div>
-                                    <div className="receipt-payment-row flex justify-between text-[11px]">
-                                        <span>Account Name:</span>
-                                        <span className="font-bold uppercase">{settings.account_name}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="receipt-footer">
-                            <div className="text-[11px] font-bold">Professional Repair & Screen Replacement</div>
-                            <div className="mt-2 text-[10px] border-t border-dashed border-black pt-2" dangerouslySetInnerHTML={{ __html: (settings.receipt_footer || '').replace(/\n/g, '<br />') }} />
-                        </div>
-                    </div>
+                <div className="p-6 overflow-y-auto max-h-[65vh] bg-gray-50 flex justify-center">
+                    <div
+                        ref={previewRef}
+                        style={{
+                            fontFamily: "'Inconsolata', 'Courier New', Courier, monospace",
+                            fontSize: '12px',
+                            lineHeight: '1.5',
+                            color: '#000',
+                            background: '#fff',
+                            padding: '16px',
+                            width: '100%',
+                            maxWidth: '320px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                        }}
+                        dangerouslySetInnerHTML={{ __html: `<style>${getPrintStyles().replace(/@page[^}]+}/, '').replace(/body\s*{[^}]+}/, '')}</style>` + previewHTML }}
+                    />
                 </div>
 
-                <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 no-print">
+                <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
                     <button
                         onClick={handlePrint}
                         className="flex-1 bg-black text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-900 transition-colors shadow-lg"
